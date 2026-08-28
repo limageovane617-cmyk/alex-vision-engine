@@ -32,7 +32,7 @@ HTML = """
         }
 
         .caixa {
-            max-width: 720px;
+            max-width: 760px;
             margin: auto;
             background: #1f2937;
             padding: 25px;
@@ -98,19 +98,17 @@ HTML = """
     <h1>🧪 Alex Vision Lab</h1>
 
     <p>
-        Teste controlado do runtime llama.cpp
+        Diagnóstico controlado do ambiente para
+        instalação do llama.cpp
     </p>
+
 
     <div class="painel">
 
-        <h2>🔬 Diagnóstico</h2>
-
-        <div class="status verde">
-            🟢 Laboratório iniciado
-        </div>
+        <h2>🔬 Runtime</h2>
 
         <div class="status azul">
-            ⚙️ Runtime:
+            ⚙️ Runtime planejado:
             <strong>llama.cpp</strong>
         </div>
 
@@ -123,13 +121,9 @@ HTML = """
 
             <div class="status verde">
 
-                🟢 Executável encontrado!
+                🟢 llama.cpp encontrado!
 
                 <br><br>
-
-                Caminho:
-
-                <br>
 
                 <code>{{ llama_caminho }}</code>
 
@@ -141,10 +135,6 @@ HTML = """
 
                 🟡 llama.cpp ainda não está instalado.
 
-                <br><br>
-
-                Nesta etapa isso é esperado.
-
             </div>
 
         {% endif %}
@@ -154,11 +144,23 @@ HTML = """
 
     <div class="painel">
 
-        <h2>🧪 Teste do Runtime</h2>
+        <h2>🛠️ Ferramentas disponíveis</h2>
 
-        <div class="status azul">
+        <div class="status {{ git_status }}">
 
-            <pre>{{ resultado }}</pre>
+            {{ git_text }}
+
+        </div>
+
+        <div class="status {{ cmake_status }}">
+
+            {{ cmake_text }}
+
+        </div>
+
+        <div class="status {{ make_status }}">
+
+            {{ make_text }}
 
         </div>
 
@@ -167,16 +169,28 @@ HTML = """
 
     <div class="painel">
 
-        <h2>📦 SmolVLM</h2>
+        <h2>🧪 Diagnóstico completo</h2>
+
+        <div class="status azul">
+
+            <pre>{{ diagnostico }}</pre>
+
+        </div>
+
+    </div>
+
+
+    <div class="painel">
+
+        <h2>📦 Modelo</h2>
 
         <div class="status amarelo">
 
-            ⏸️ Modelo ainda não será baixado.
+            ⏸️ SmolVLM ainda NÃO será baixado.
 
             <br><br>
 
-            Primeiro precisamos provar que
-            o runtime funciona.
+            Primeiro precisamos preparar o runtime.
 
         </div>
 
@@ -190,7 +204,7 @@ HTML = """
 """
 
 
-def encontrar_llama():
+def encontrar_executavel():
 
     nomes = [
         "llama",
@@ -204,10 +218,9 @@ def encontrar_llama():
         caminho = shutil.which(nome)
 
         if caminho:
-
             return caminho
 
-    caminhos_locais = [
+    caminhos = [
 
         "./llama",
         "./llama-cli",
@@ -219,114 +232,37 @@ def encontrar_llama():
         "./bin/llama-server",
         "./bin/llama-mtmd-cli",
 
-        "./llama.cpp/llama-cli",
-        "./llama.cpp/llama-server",
-
         "./llama.cpp/build/bin/llama-cli",
         "./llama.cpp/build/bin/llama-server",
         "./llama.cpp/build/bin/llama-mtmd-cli"
 
     ]
 
-    for caminho in caminhos_locais:
+    for caminho in caminhos:
 
         if os.path.isfile(caminho):
-
             return caminho
 
     return None
 
 
-def testar_runtime(caminho):
+def verificar_comando(nome):
 
-    if not caminho:
+    caminho = shutil.which(nome)
 
-        return (
-            "🟡 TESTE DO RUNTIME\\n\\n"
-            "llama.cpp não foi encontrado.\\n\\n"
-            "Resultado: o ambiente ainda não possui "
-            "o executável.\\n\\n"
-            "Nenhum modelo foi baixado."
-        )
+    if caminho:
 
-    comandos = [
+        return True, caminho
 
-        [caminho, "--version"],
-
-        [caminho, "-h"]
-
-    ]
-
-    ultimo_erro = ""
-
-    for comando in comandos:
-
-        try:
-
-            resultado = subprocess.run(
-                comando,
-                capture_output=True,
-                text=True,
-                timeout=10
-            )
-
-            saida = (
-                resultado.stdout
-                or resultado.stderr
-                or ""
-            )
-
-            if saida.strip():
-
-                return (
-                    "🟢 TESTE DO RUNTIME APROVADO!\\n\\n"
-                    "llama.cpp respondeu corretamente.\\n\\n"
-                    + saida[:4000]
-                )
-
-        except Exception as erro:
-
-            ultimo_erro = str(erro)
-
-    return (
-        "🟡 EXECUTÁVEL ENCONTRADO\\n\\n"
-        "O arquivo existe, mas o diagnóstico "
-        "não conseguiu obter uma resposta.\\n\\n"
-        f"Erro: {ultimo_erro}"
-    )
+    return False, None
 
 
-@app.route("/")
-def inicio():
-
-    caminho = encontrar_llama()
-
-    resultado = testar_runtime(caminho)
-
-    return render_template_string(
-        HTML,
-        llama_caminho=caminho,
-        resultado=resultado
-    )
-
-
-@app.route("/diagnostico")
-def diagnostico():
-
-    caminho = encontrar_llama()
-
-    if not caminho:
-
-        return (
-            "<h1>🟡 llama.cpp não encontrado</h1>"
-            "<p>O runtime ainda não está instalado.</p>"
-            "<p>Nenhum modelo foi baixado.</p>"
-        )
+def executar_versao(comando):
 
     try:
 
         resultado = subprocess.run(
-            [caminho, "--version"],
+            [comando, "--version"],
             capture_output=True,
             text=True,
             timeout=10
@@ -335,21 +271,201 @@ def diagnostico():
         saida = (
             resultado.stdout
             or resultado.stderr
-            or "Sem saída."
+            or ""
         )
 
-        return (
-            "<h1>🟢 llama.cpp encontrado</h1>"
-            f"<p>Caminho: <code>{caminho}</code></p>"
-            f"<pre>{saida}</pre>"
-        )
+        if saida.strip():
+
+            return saida.strip()
+
+        return "Comando encontrado, mas sem saída."
 
     except Exception as erro:
 
-        return (
-            "<h1>🟡 Executável encontrado</h1>"
-            f"<p>Erro ao executar: {erro}</p>"
+        return f"Erro: {erro}"
+
+
+def diagnosticar():
+
+    linhas = []
+
+    linhas.append(
+        "🧪 DIAGNÓSTICO DO AMBIENTE"
+    )
+
+    linhas.append(
+        "================================"
+    )
+
+    llama = encontrar_executavel()
+
+    if llama:
+
+        linhas.append(
+            f"🟢 llama.cpp encontrado: {llama}"
         )
+
+        linhas.append(
+            executar_versao(llama)
+        )
+
+    else:
+
+        linhas.append(
+            "🟡 llama.cpp: não encontrado"
+        )
+
+    git_ok, git_path = verificar_comando("git")
+
+    if git_ok:
+
+        linhas.append(
+            f"🟢 Git encontrado: {git_path}"
+        )
+
+        linhas.append(
+            executar_versao(git_path)
+        )
+
+    else:
+
+        linhas.append(
+            "🔴 Git não encontrado"
+        )
+
+    cmake_ok, cmake_path = verificar_comando("cmake")
+
+    if cmake_ok:
+
+        linhas.append(
+            f"🟢 CMake encontrado: {cmake_path}"
+        )
+
+        linhas.append(
+            executar_versao(cmake_path)
+        )
+
+    else:
+
+        linhas.append(
+            "🔴 CMake não encontrado"
+        )
+
+    make_ok, make_path = verificar_comando("make")
+
+    if make_ok:
+
+        linhas.append(
+            f"🟢 Make encontrado: {make_path}"
+        )
+
+    else:
+
+        linhas.append(
+            "🟡 Make não encontrado"
+        )
+
+    linhas.append(
+        "================================"
+    )
+
+    linhas.append(
+        "📦 Nenhum modelo foi baixado."
+    )
+
+    return "\n".join(linhas)
+
+
+@app.route("/")
+def inicio():
+
+    llama = encontrar_executavel()
+
+    git_ok, git_path = verificar_comando("git")
+
+    cmake_ok, cmake_path = verificar_comando("cmake")
+
+    make_ok, make_path = verificar_comando("make")
+
+
+    if git_ok:
+
+        git_status = "verde"
+
+        git_text = (
+            f"🟢 Git disponível: {git_path}"
+        )
+
+    else:
+
+        git_status = "vermelho"
+
+        git_text = (
+            "🔴 Git não encontrado"
+        )
+
+
+    if cmake_ok:
+
+        cmake_status = "verde"
+
+        cmake_text = (
+            f"🟢 CMake disponível: {cmake_path}"
+        )
+
+    else:
+
+        cmake_status = "vermelho"
+
+        cmake_text = (
+            "🔴 CMake não encontrado"
+        )
+
+
+    if make_ok:
+
+        make_status = "verde"
+
+        make_text = (
+            f"🟢 Make disponível: {make_path}"
+        )
+
+    else:
+
+        make_status = "amarelo"
+
+        make_text = (
+            "🟡 Make não encontrado"
+        )
+
+
+    return render_template_string(
+        HTML,
+
+        llama_caminho=llama,
+
+        git_status=git_status,
+        git_text=git_text,
+
+        cmake_status=cmake_status,
+        cmake_text=cmake_text,
+
+        make_status=make_status,
+        make_text=make_text,
+
+        diagnostico=diagnosticar()
+    )
+
+
+@app.route("/diagnostico")
+def rota_diagnostico():
+
+    return (
+        "<h1>🧪 Alex Vision Lab</h1>"
+        "<pre>"
+        + diagnosticar()
+        + "</pre>"
+    )
 
 
 if __name__ == "__main__":

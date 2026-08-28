@@ -15,14 +15,11 @@ app = Flask(__name__)
 
 MODEL = "ggml-org/SmolVLM-256M-Instruct-GGUF:Q8_0"
 
-# 30 minutos
 LIMITE_SEGUNDOS = 1800
-
-# Quantidade máxima de saída armazenada
 MAX_OUTPUT = 50000
 
 # ============================================================
-# ESTADO DO TESTE
+# ESTADO GLOBAL
 # ============================================================
 
 job_lock = threading.Lock()
@@ -41,7 +38,7 @@ processo_atual = None
 
 
 # ============================================================
-# INTERFACE
+# HTML
 # ============================================================
 
 HTML = """
@@ -49,7 +46,6 @@ HTML = """
 <html lang="pt-BR">
 
 <head>
-
 <meta charset="UTF-8">
 
 <meta name="viewport"
@@ -64,7 +60,7 @@ body {
     background: #111827;
     color: white;
     text-align: center;
-    padding: 25px 15px;
+    padding: 20px 12px;
 }
 
 .caixa {
@@ -145,10 +141,6 @@ pre {
     overflow-y: auto;
 }
 
-code {
-    word-break: break-word;
-}
-
 .pequeno {
     opacity: 0.8;
     font-size: 14px;
@@ -161,8 +153,8 @@ code {
 }
 
 </style>
-
 </head>
+
 
 <body>
 
@@ -197,9 +189,9 @@ Teste controlado do carregamento do SmolVLM
 
 {% else %}
 
-<div class="status vermelho">
+<div class="status amarelo">
 
-🔴 llama-cli não encontrado.
+🟡 llama-cli não encontrado.
 
 </div>
 
@@ -331,19 +323,19 @@ O modelo será carregado pelo llama-mtmd-cli.
 
 1️⃣ Confirmar llama.cpp
 
-<br>
+<br><br>
 
-2️⃣ Usar llama-mtmd-cli para o SmolVLM
+2️⃣ Usar llama-mtmd-cli
 
-<br>
+<br><br>
 
-3️⃣ Baixar/carregar o modelo
+3️⃣ Baixar/carregar SmolVLM
 
-<br>
+<br><br>
 
 4️⃣ Confirmar que o modelo responde
 
-<br>
+<br><br>
 
 5️⃣ Depois testar imagens
 
@@ -357,12 +349,11 @@ O modelo será carregado pelo llama-mtmd-cli.
 <script>
 
 let monitorando = false;
-
 let tentativasFalha = 0;
 
 
 /* ==========================================================
-   INICIAR TESTE
+   INICIAR
    ========================================================== */
 
 async function iniciarTeste() {
@@ -373,11 +364,11 @@ async function iniciarTeste() {
     const status =
         document.getElementById("status");
 
-    const resultado =
-        document.getElementById("resultado");
-
     const tempo =
         document.getElementById("tempo");
+
+    const resultado =
+        document.getElementById("resultado");
 
 
     botao.disabled = true;
@@ -398,8 +389,7 @@ async function iniciarTeste() {
     resultado.style.display =
         "none";
 
-    resultado.innerText =
-        "";
+    resultado.innerText = "";
 
     tentativasFalha = 0;
 
@@ -416,51 +406,35 @@ async function iniciarTeste() {
             );
 
 
-        if (!resposta.ok) {
+        const dados =
+            await resposta.json();
+
+
+        if (!resposta.ok || !dados.ok) {
 
             throw new Error(
-                "Servidor respondeu HTTP " +
-                resposta.status
+                dados.mensagem ||
+                "Falha ao iniciar o processo."
             );
 
         }
 
 
-        const dados =
-            await resposta.json();
-
-
-        if (!dados.ok) {
-
-            status.className =
-                "status vermelho";
-
-            status.innerText =
-                "🔴 " + dados.mensagem;
-
-            liberarBotao();
-
-            return;
-
-        }
-
-
-        monitorando =
-            true;
+        monitorando = true;
 
 
         status.className =
             "status amarelo";
 
         status.innerText =
-            "🟡 Processo iniciado. O SmolVLM está sendo carregado...";
+            "🟡 Processo iniciado. " +
+            "O SmolVLM está sendo carregado...";
 
 
         acompanhar();
 
-    }
 
-    catch (erro) {
+    } catch (erro) {
 
         monitorando = false;
 
@@ -479,7 +453,7 @@ async function iniciarTeste() {
 
 
 /* ==========================================================
-   ACOMPANHAR PROCESSO
+   ACOMPANHAR
    ========================================================== */
 
 async function acompanhar() {
@@ -524,9 +498,9 @@ async function acompanhar() {
             document.getElementById("tempo");
 
 
-        /* ==================================================
+        /* --------------------------------------------------
            PROCESSANDO
-           ================================================== */
+           -------------------------------------------------- */
 
         if (
             dados.status === "running" ||
@@ -578,22 +552,19 @@ async function acompanhar() {
                 2000
             );
 
-
             return;
-
         }
 
 
-        /* ==================================================
+        /* --------------------------------------------------
            SUCESSO
-           ================================================== */
+           -------------------------------------------------- */
 
         if (
             dados.status === "success"
         ) {
 
-            monitorando =
-                false;
+            monitorando = false;
 
 
             status.className =
@@ -601,7 +572,8 @@ async function acompanhar() {
 
 
             status.innerText =
-                "🟢 SmolVLM carregado e processo concluído!";
+                "🟢 SmolVLM terminou o teste " +
+                "sem erro de processo.";
 
 
             tempo.innerText =
@@ -619,20 +591,18 @@ async function acompanhar() {
             liberarBotao();
 
             return;
-
         }
 
 
-        /* ==================================================
+        /* --------------------------------------------------
            ERRO
-           ================================================== */
+           -------------------------------------------------- */
 
         if (
             dados.status === "error"
         ) {
 
-            monitorando =
-                false;
+            monitorando = false;
 
 
             status.className =
@@ -662,20 +632,18 @@ async function acompanhar() {
             liberarBotao();
 
             return;
-
         }
 
 
-        /* ==================================================
+        /* --------------------------------------------------
            IDLE
-           ================================================== */
+           -------------------------------------------------- */
 
         if (
             dados.status === "idle"
         ) {
 
-            monitorando =
-                false;
+            monitorando = false;
 
 
             status.className =
@@ -686,14 +654,12 @@ async function acompanhar() {
                 "⏸️ Aguardando início do teste.";
 
 
-            tempo.innerText =
-                "";
+            tempo.innerText = "";
 
 
             liberarBotao();
 
             return;
-
         }
 
 
@@ -702,9 +668,8 @@ async function acompanhar() {
             2000
         );
 
-    }
 
-    catch (erro) {
+    } catch (erro) {
 
         tentativasFalha++;
 
@@ -713,25 +678,17 @@ async function acompanhar() {
             document.getElementById("status");
 
 
-        /*
-         * Não encerramos o teste por uma
-         * falha temporária de comunicação.
-         */
-
         status.className =
             "status amarelo";
 
 
         status.innerText =
-            "🟡 Comunicação temporariamente indisponível.\\n" +
+            "🟡 Comunicação temporariamente " +
+            "indisponível.\\n" +
             "O processo continua sendo monitorado.\\n\\n" +
             "Tentativa: " +
             tentativasFalha;
 
-
-        /*
-         * Continua tentando.
-         */
 
         setTimeout(
             acompanhar,
@@ -794,7 +751,7 @@ function formatarTempo(segundos) {
         );
 
 
-    const segundosRestantes =
+    const restantes =
         Math.floor(
             segundos % 60
         );
@@ -804,7 +761,7 @@ function formatarTempo(segundos) {
         minutos +
         "m " +
         String(
-            segundosRestantes
+            restantes
         ).padStart(2, "0") +
         "s"
     );
@@ -824,8 +781,7 @@ function liberarBotao() {
         );
 
 
-    botao.disabled =
-        false;
+    botao.disabled = false;
 
 
     botao.innerText =
@@ -836,7 +792,6 @@ function liberarBotao() {
 </script>
 
 </body>
-
 </html>
 """
 
@@ -854,17 +809,11 @@ def procurar(nome):
 
 
     caminhos = [
-
         f"./bin/{nome}",
-
         f"./{nome}",
-
         f"./llama.cpp/{nome}",
-
         f"./llama.cpp/build/bin/{nome}",
-
         f"./llama.cpp/build/bin/Release/{nome}",
-
     ]
 
 
@@ -877,7 +826,6 @@ def procurar(nome):
                     caminho,
                     0o755
                 )
-
             except Exception:
                 pass
 
@@ -900,14 +848,16 @@ def adicionar_saida(texto):
 
     with job_lock:
 
-        atual =
-            job.get("output", "")
+        atual = job.get(
+            "output",
+            ""
+        )
 
-        novo =
-            atual + texto
+        novo = atual + texto
 
-        job["output"] =
-            novo[-MAX_OUTPUT:]
+        job["output"] = novo[
+            -MAX_OUTPUT:
+        ]
 
 
 # ============================================================
@@ -920,9 +870,7 @@ def ler_saida(processo, fila):
 
         while True:
 
-            linha =
-                processo.stdout.readline()
-
+            linha = processo.stdout.readline()
 
             if linha == "":
                 break
@@ -969,7 +917,6 @@ def encerrar_processo(processo):
 
             try:
                 processo.terminate()
-
             except Exception:
                 pass
 
@@ -995,7 +942,6 @@ def encerrar_processo(processo):
 
                 try:
                     processo.kill()
-
                 except Exception:
                     pass
 
@@ -1009,72 +955,118 @@ def encerrar_processo(processo):
 # ============================================================
 
 def executar_em_segundo_plano(caminho):
+
     global processo_atual
+
+
+    # --------------------------------------------------------
+    # COMANDO REAL DO SMOLVLM
+    # --------------------------------------------------------
 
     comando = [
         caminho,
         "-hf",
         MODEL,
         "-p",
-        "Olá Alex. Responda apenas: modelo carregado.",
+        "Responda apenas: modelo carregado.",
         "-n",
         "16",
+        "--temp",
+        "0",
+        "--no-mmproj-offload",
     ]
+
 
     inicio = time.time()
 
+    processo = None
+
+
     try:
+
         with job_lock:
+
             job["status"] = "running"
+
             job["success"] = False
+
             job["output"] = ""
+
             job["started_at"] = inicio
+
             job["finished_at"] = None
+
             job["pid"] = None
+
             job["mensagem"] = (
                 "🟡 llama-mtmd-cli iniciou o processo..."
             )
+
 
         # ----------------------------------------------------
         # INICIAR PROCESSO
         # ----------------------------------------------------
 
         processo = subprocess.Popen(
+
             comando,
+
             stdout=subprocess.PIPE,
+
             stderr=subprocess.STDOUT,
+
             stdin=subprocess.DEVNULL,
+
             text=True,
+
             bufsize=1,
+
             errors="replace",
+
             start_new_session=True,
+
         )
+
 
         processo_atual = processo
 
+
         with job_lock:
+
             job["pid"] = processo.pid
+
             job["mensagem"] = (
                 "🟡 llama-mtmd-cli ativo. "
-                "Aguardando carregamento do SmolVLM..."
+                "Carregando SmolVLM..."
             )
 
+
         # ----------------------------------------------------
-        # FILA DE SAÍDA
+        # LEITOR
         # ----------------------------------------------------
 
         fila = queue.Queue()
 
+
         leitor = threading.Thread(
+
             target=ler_saida,
-            args=(processo, fila),
+
+            args=(
+                processo,
+                fila
+            ),
+
             daemon=True,
+
         )
+
 
         leitor.start()
 
+
         # ----------------------------------------------------
-        # WATCHDOG
+        # MONITORAMENTO
         # ----------------------------------------------------
 
         while True:
@@ -1085,47 +1077,75 @@ def executar_em_segundo_plano(caminho):
                 agora - inicio
             )
 
+
             # ------------------------------------------------
-            # DRENAR SAÍDA
+            # CAPTURAR SAÍDA
             # ------------------------------------------------
 
             while True:
 
                 try:
+
                     linha = fila.get_nowait()
 
                 except queue.Empty:
+
                     break
 
-                adicionar_saida(linha)
+
+                adicionar_saida(
+                    linha
+                )
+
 
             # ------------------------------------------------
-            # VERIFICAR PROCESSO
+            # PROCESSO TERMINOU
             # ------------------------------------------------
 
             retorno = processo.poll()
 
+
             if retorno is not None:
 
+                # Tentar pegar o restante
                 while True:
 
                     try:
+
                         linha = fila.get_nowait()
 
                     except queue.Empty:
+
                         break
 
-                    adicionar_saida(linha)
+
+                    adicionar_saida(
+                        linha
+                    )
+
 
                 try:
-                    leitor.join(timeout=2)
+
+                    leitor.join(
+                        timeout=2
+                    )
+
                 except Exception:
                     pass
 
+
                 with job_lock:
-                    job["finished_at"] = time.time()
+
+                    job["finished_at"] = (
+                        time.time()
+                    )
+
                     job["pid"] = None
-                    texto_final = job["output"]
+
+                    texto_final = (
+                        job["output"]
+                    )
+
 
                 # --------------------------------------------
                 # SUCESSO
@@ -1134,12 +1154,20 @@ def executar_em_segundo_plano(caminho):
                 if retorno == 0:
 
                     with job_lock:
-                        job["status"] = "success"
-                        job["success"] = True
-                        job["mensagem"] = (
-                            "🟢 llama-mtmd-cli terminou normalmente."
+
+                        job["status"] = (
+                            "success"
                         )
+
+                        job["success"] = True
+
+                        job["mensagem"] = (
+                            "🟢 llama-mtmd-cli "
+                            "terminou normalmente."
+                        )
+
                         job["pid"] = None
+
 
                 # --------------------------------------------
                 # ERRO
@@ -1148,25 +1176,41 @@ def executar_em_segundo_plano(caminho):
                 else:
 
                     mensagem_erro = (
-                        "🔴 llama-mtmd-cli encerrou com "
-                        "código de saída: "
+
+                        "🔴 llama-mtmd-cli "
+                        "encerrou com código "
+                        "de saída: "
+
                         + str(retorno)
+
                     )
 
+
                     with job_lock:
-                        job["status"] = "error"
+
+                        job["status"] = (
+                            "error"
+                        )
+
                         job["success"] = False
-                        job["mensagem"] = mensagem_erro
+
+                        job["mensagem"] = (
+                            mensagem_erro
+                        )
+
                         job["output"] = (
                             mensagem_erro
                             + "\n\n"
                             + texto_final
                         )[-MAX_OUTPUT:]
+
                         job["pid"] = None
+
 
                 processo_atual = None
 
                 return
+
 
             # ------------------------------------------------
             # TIMEOUT
@@ -1175,80 +1219,126 @@ def executar_em_segundo_plano(caminho):
             if tempo_decorrido >= LIMITE_SEGUNDOS:
 
                 mensagem_timeout = (
+
                     "\n\n"
                     "⏱️ LIMITE DE 30 MINUTOS ATINGIDO.\n"
                     "O processo foi encerrado pelo laboratório.\n"
+
                 )
+
 
                 adicionar_saida(
                     mensagem_timeout
                 )
 
+
                 encerrar_processo(
                     processo
                 )
 
+
                 with job_lock:
-                    job["status"] = "error"
+
+                    job["status"] = (
+                        "error"
+                    )
+
                     job["success"] = False
-                    job["finished_at"] = time.time()
+
+                    job["finished_at"] = (
+                        time.time()
+                    )
+
                     job["pid"] = None
+
                     job["mensagem"] = (
                         "⏱️ Timeout de 30 minutos."
                     )
+
 
                 processo_atual = None
 
                 return
 
+
             # ------------------------------------------------
-            # ATUALIZAR MENSAGEM
+            # ATUALIZAR STATUS
             # ------------------------------------------------
 
             minutos = int(
                 tempo_decorrido // 60
             )
 
+
             segundos = int(
                 tempo_decorrido % 60
             )
 
+
             with job_lock:
+
                 job["mensagem"] = (
+
                     "🟡 Carregando SmolVLM... "
                     + str(minutos)
                     + "m "
                     + str(segundos)
                     + "s"
+
                 )
 
-            time.sleep(0.25)
+
+            time.sleep(
+                0.25
+            )
+
 
     except Exception as erro:
 
         texto_erro = (
+
             "❌ Erro ao executar "
             "llama-mtmd-cli:\n\n"
+
             + str(erro)
+
         )
 
+
         try:
-            if processo_atual:
+
+            if processo is not None:
+
                 encerrar_processo(
-                    processo_atual
+                    processo
                 )
+
         except Exception:
             pass
 
+
         with job_lock:
-            job["status"] = "error"
+
+            job["status"] = (
+                "error"
+            )
+
             job["success"] = False
-            job["output"] = texto_erro
-            job["finished_at"] = time.time()
+
+            job["output"] = (
+                texto_erro
+            )
+
+            job["finished_at"] = (
+                time.time()
+            )
+
             job["pid"] = None
+
             job["mensagem"] = (
                 "🔴 Erro interno do laboratório."
             )
+
 
         processo_atual = None
 
@@ -1263,20 +1353,23 @@ def executar_em_segundo_plano(caminho):
 )
 def iniciar():
 
-    # Para o SmolVLM usamos o runtime multimodal.
     mtmd = procurar(
         "llama-mtmd-cli"
     )
 
+
     if not mtmd:
 
         return jsonify({
+
             "ok": False,
+
             "mensagem": (
-                "llama-mtmd-cli não foi encontrado. "
-                "O SmolVLM precisa do runtime multimodal."
+                "llama-mtmd-cli não foi encontrado."
             )
-        })
+
+        }), 500
+
 
     with job_lock:
 
@@ -1286,36 +1379,62 @@ def iniciar():
         ):
 
             return jsonify({
+
                 "ok": False,
+
                 "mensagem": (
                     "O SmolVLM já está sendo carregado."
                 )
+
             })
 
-        job["status"] = "starting"
-        job["output"] = ""
+
+        job["status"] = (
+            "starting"
+        )
+
         job["success"] = False
-        job["started_at"] = time.time()
+
+        job["output"] = ""
+
+        job["started_at"] = (
+            time.time()
+        )
+
         job["finished_at"] = None
+
         job["pid"] = None
+
         job["mensagem"] = (
             "🟡 Preparando llama-mtmd-cli..."
         )
 
+
     thread = threading.Thread(
+
         target=executar_em_segundo_plano,
-        args=(mtmd,),
+
+        args=(
+            mtmd,
+        ),
+
         daemon=True,
+
     )
+
 
     thread.start()
 
+
     return jsonify({
+
         "ok": True,
+
         "mensagem": (
             "llama-mtmd-cli iniciado "
             "em segundo plano."
         )
+
     })
 
 
@@ -1329,50 +1448,59 @@ def iniciar():
 )
 def status():
 
-    # --------------------------------------------------------
-    # COPIAR O ESTADO ATUAL COM SEGURANÇA
-    # --------------------------------------------------------
-
     with job_lock:
+
         dados = dict(job)
 
-    # --------------------------------------------------------
-    # CALCULAR TEMPO DECORRIDO
-    # --------------------------------------------------------
 
     tempo = 0
 
-    if dados.get("started_at"):
 
-        fim = dados.get("finished_at")
+    inicio = dados.get(
+        "started_at"
+    )
+
+
+    if inicio is not None:
+
+        fim = dados.get(
+            "finished_at"
+        )
+
 
         if fim is None:
+
             fim = time.time()
+
 
         tempo = int(
             max(
                 0,
-                fim - dados["started_at"]
+                fim - inicio
             )
         )
 
+
     dados["tempo"] = tempo
 
-    # --------------------------------------------------------
-    # GARANTIR CAMPOS DE TEXTO
-    # --------------------------------------------------------
 
-    if dados.get("output") is None:
+    if dados.get(
+        "output"
+    ) is None:
+
         dados["output"] = ""
 
-    if dados.get("mensagem") is None:
+
+    if dados.get(
+        "mensagem"
+    ) is None:
+
         dados["mensagem"] = ""
 
-    # --------------------------------------------------------
-    # RETORNAR STATUS EM JSON
-    # --------------------------------------------------------
 
-    return jsonify(dados)
+    return jsonify(
+        dados
+    )
 
 
 # ============================================================
@@ -1385,22 +1513,19 @@ def status():
 )
 def inicio():
 
-    llama =
-        procurar(
-            "llama-cli"
-        )
+    llama = procurar(
+        "llama-cli"
+    )
 
 
-    mtmd =
-        procurar(
-            "llama-mtmd-cli"
-        )
+    mtmd = procurar(
+        "llama-mtmd-cli"
+    )
 
 
-    server =
-        procurar(
-            "llama-server"
-        )
+    server = procurar(
+        "llama-server"
+    )
 
 
     return render_template_string(
@@ -1424,13 +1549,12 @@ def inicio():
 
 if __name__ == "__main__":
 
-    porta =
-        int(
-            os.environ.get(
-                "PORT",
-                10000
-            )
+    porta = int(
+        os.environ.get(
+            "PORT",
+            10000
         )
+    )
 
 
     app.run(

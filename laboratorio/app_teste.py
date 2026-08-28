@@ -1329,57 +1329,50 @@ def iniciar():
 )
 def status():
 
+    # --------------------------------------------------------
+    # COPIAR O ESTADO ATUAL COM SEGURANÇA
+    # --------------------------------------------------------
+
     with job_lock:
+        dados = dict(job)
 
-        dados =
-            dict(job)
+    # --------------------------------------------------------
+    # CALCULAR TEMPO DECORRIDO
+    # --------------------------------------------------------
 
+    tempo = 0
 
-    tempo =
-        0
+    if dados.get("started_at"):
 
-
-    if dados["started_at"]:
-
-        fim =
-            dados["finished_at"]
-
+        fim = dados.get("finished_at")
 
         if fim is None:
+            fim = time.time()
 
-            fim =
-                time.time()
-
-
-        tempo =
-            int(
-                max(
-                    0,
-                    fim -
-                    dados["started_at"]
-                )
+        tempo = int(
+            max(
+                0,
+                fim - dados["started_at"]
             )
+        )
 
+    dados["tempo"] = tempo
 
-    dados["tempo"] =
-        tempo
-
+    # --------------------------------------------------------
+    # GARANTIR CAMPOS DE TEXTO
+    # --------------------------------------------------------
 
     if dados.get("output") is None:
-
-        dados["output"] =
-            ""
-
+        dados["output"] = ""
 
     if dados.get("mensagem") is None:
+        dados["mensagem"] = ""
 
-        dados["mensagem"] =
-            ""
+    # --------------------------------------------------------
+    # RETORNAR STATUS EM JSON
+    # --------------------------------------------------------
 
-
-    return jsonify(
-        dados
-    )
+    return jsonify(dados)
 
 
 # ============================================================

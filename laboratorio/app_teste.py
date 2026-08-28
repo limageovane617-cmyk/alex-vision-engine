@@ -1167,6 +1167,148 @@ def executar_em_segundo_plano(
             # ------------------------------------------------
             # DRENAR SAÍDA
             # ------------------------------------------------
+
+            while True:
+
+                try:
+
+                    linha = fila.get_nowait()
+
+                except queue.Empty:
+
+                    break
+
+
+                adicionar_saida(
+                    linha
+                )
+
+
+            # ------------------------------------------------
+            # VERIFICAR PROCESSO
+            # ------------------------------------------------
+
+            retorno = processo.poll()
+
+
+            if retorno is not None:
+
+                # --------------------------------------------
+                # DRENAR ÚLTIMA SAÍDA
+                # --------------------------------------------
+
+                while True:
+
+                    try:
+
+                        linha = fila.get_nowait()
+
+                    except queue.Empty:
+
+                        break
+
+
+                    adicionar_saida(
+                        linha
+                    )
+
+
+                try:
+
+                    leitor.join(
+                        timeout=2
+                    )
+
+                except Exception:
+                    pass
+
+
+                # --------------------------------------------
+                # PEGAR RESULTADO FINAL
+                # --------------------------------------------
+
+                with job_lock:
+
+                    job["finished_at"] = (
+                        time.time()
+                    )
+
+                    job["pid"] = None
+
+                    texto_final = (
+                        job.get(
+                            "output",
+                            ""
+                        )
+                    )
+
+
+                # --------------------------------------------
+                # SUCESSO
+                # --------------------------------------------
+
+                if retorno == 0:
+
+                    with job_lock:
+
+                        job["status"] = (
+                            "success"
+                        )
+
+                        job["success"] = True
+
+                        job["mensagem"] = (
+                            "🟢 llama-mtmd-cli "
+                            "terminou normalmente."
+                        )
+
+                        job["pid"] = None
+
+
+                # --------------------------------------------
+                # ERRO
+                # --------------------------------------------
+
+                else:
+
+                    mensagem_erro = (
+                        "🔴 llama-mtmd-cli "
+                        "encerrou com código "
+                        "de saída: "
+                        + str(retorno)
+                    )
+
+
+                    with job_lock:
+
+                        job["status"] = (
+                            "error"
+                        )
+
+                        job["success"] = False
+
+                        job["mensagem"] = (
+                            mensagem_erro
+                        )
+
+                        job["output"] = (
+                            mensagem_erro
+                            + "\n\n"
+                            + texto_final
+                        )[-MAX_OUTPUT:]
+
+                        job["pid"] = None
+
+
+                processo_atual = None
+
+                return
+
+
+            # ------------------------------------------------
+            # TIMEOUT
+            # ------------------------------------------------
+
         
 
 

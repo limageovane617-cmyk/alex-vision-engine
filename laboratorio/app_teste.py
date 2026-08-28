@@ -1034,6 +1034,140 @@ def encerrar_processo(
 # EXECUÇÃO EM SEGUNDO PLANO
 # ============================================================
 
+def executar_em_segundo_plano(
+    caminho
+):
+
+    global processo_atual
+
+
+    processo = None
+
+
+    # --------------------------------------------------------
+    # COMANDO DO SMOLVLM
+    # --------------------------------------------------------
+
+    comando = [
+        caminho,
+
+        "-hf",
+        MODEL,
+
+        "-p",
+        "Olá Alex. Responda apenas: modelo carregado.",
+
+        "-n",
+        "16",
+    ]
+
+
+    inicio = time.time()
+
+
+    try:
+
+        # ----------------------------------------------------
+        # PREPARAR ESTADO
+        # ----------------------------------------------------
+
+        with job_lock:
+
+            job["status"] = "running"
+
+            job["success"] = False
+
+            job["output"] = ""
+
+            job["started_at"] = inicio
+
+            job["finished_at"] = None
+
+            job["pid"] = None
+
+            job["mensagem"] = (
+                "🟡 llama-mtmd-cli iniciou o processo..."
+            )
+
+
+        # ----------------------------------------------------
+        # INICIAR PROCESSO
+        # ----------------------------------------------------
+
+        processo = subprocess.Popen(
+
+            comando,
+
+            stdout=subprocess.PIPE,
+
+            stderr=subprocess.STDOUT,
+
+            stdin=subprocess.DEVNULL,
+
+            text=True,
+
+            bufsize=1,
+
+            errors="replace",
+
+            start_new_session=True,
+        )
+
+
+        processo_atual = processo
+
+
+        with job_lock:
+
+            job["pid"] = processo.pid
+
+            job["mensagem"] = (
+                "🟡 llama-mtmd-cli ativo. "
+                "Aguardando carregamento do SmolVLM..."
+            )
+
+
+        # ----------------------------------------------------
+        # FILA PARA CAPTURAR SAÍDA
+        # ----------------------------------------------------
+
+        fila = queue.Queue()
+
+
+        leitor = threading.Thread(
+
+            target=ler_saida,
+
+            args=(
+                processo,
+                fila
+            ),
+
+            daemon=True,
+        )
+
+
+        leitor.start()
+
+
+        # ----------------------------------------------------
+        # WATCHDOG
+        # ----------------------------------------------------
+
+        while True:
+
+            agora = time.time()
+
+
+            tempo_decorrido = (
+                agora - inicio
+            )
+
+
+            # ------------------------------------------------
+            # DRENAR SAÍDA
+            # ------------------------------------------------
+        
 
 
 

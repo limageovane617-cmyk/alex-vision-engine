@@ -809,12 +809,10 @@ function liberarBotao() {
 # ============================================================
 
 def procurar(nome):
-
     caminho = shutil.which(nome)
 
     if caminho:
         return caminho
-
 
     caminhos = [
         f"./bin/{nome}",
@@ -824,22 +822,14 @@ def procurar(nome):
         f"./llama.cpp/build/bin/Release/{nome}",
     ]
 
-
     for caminho in caminhos:
-
         if os.path.isfile(caminho):
-
             try:
-                os.chmod(
-                    caminho,
-                    0o755
-                )
+                os.chmod(caminho, 0o755)
             except Exception:
                 pass
 
-
             return caminho
-
 
     return None
 
@@ -849,51 +839,30 @@ def procurar(nome):
 # ============================================================
 
 def adicionar_saida(texto):
-
     if not texto:
         return
 
-
     with job_lock:
-
-        atual = job.get(
-            "output",
-            ""
-        )
-
-
+        atual = job.get("output", "")
         novo = atual + texto
-
-
         job["output"] = novo[-MAX_OUTPUT:]
 
 
 # ============================================================
 # LEITOR DA SAÍDA DO PROCESSO
-#
-# IMPORTANTE:
-# Essa função roda separadamente.
-#
-# Assim o watchdog NÃO fica preso em readline().
 # ============================================================
 
 def ler_saida(processo, fila):
-
     try:
-
         while True:
-
             linha = processo.stdout.readline()
-
 
             if linha == "":
                 break
 
-
             fila.put(linha)
 
     except Exception as erro:
-
         fila.put(
             "\n❌ Erro no leitor de saída: "
             + str(erro)
@@ -906,58 +875,36 @@ def ler_saida(processo, fila):
 # ============================================================
 
 def encerrar_processo(processo):
-
     if processo is None:
         return
 
-
     try:
-
         if processo.poll() is not None:
             return
 
-
-        # Linux / Render:
-        # tenta encerrar todo o grupo de processos.
-
         try:
-
             os.killpg(
-                os.getpgid(
-                    processo.pid
-                ),
+                os.getpgid(processo.pid),
                 signal.SIGTERM
             )
 
         except Exception:
-
             try:
                 processo.terminate()
             except Exception:
                 pass
 
-
-        # Espera alguns segundos.
-
         try:
-
-            processo.wait(
-                timeout=8
-            )
+            processo.wait(timeout=8)
 
         except subprocess.TimeoutExpired:
-
             try:
-
                 os.killpg(
-                    os.getpgid(
-                        processo.pid
-                    ),
+                    os.getpgid(processo.pid),
                     signal.SIGKILL
                 )
 
             except Exception:
-
                 try:
                     processo.kill()
                 except Exception:
@@ -972,13 +919,7 @@ def encerrar_processo(processo):
 # ============================================================
 
 def executar_em_segundo_plano(caminho):
-
     global processo_atual
-
-
-    # --------------------------------------------------------
-    # COMANDO
-    # --------------------------------------------------------
 
     comando = [
         caminho,
@@ -990,113 +931,67 @@ def executar_em_segundo_plano(caminho):
         "16",
     ]
 
-
     inicio = time.time()
-
 
     try:
 
         with job_lock:
-
             job["status"] = "running"
-
             job["success"] = False
-
             job["output"] = ""
-
             job["started_at"] = inicio
-
             job["finished_at"] = None
-
             job["pid"] = None
-
             job["mensagem"] = (
                 "🟡 llama.cpp iniciou o processo..."
             )
 
-
         # ----------------------------------------------------
         # INICIAR PROCESSO
-        #
-        # Não usamos timeout no Popen.
-        # O nosso watchdog controla o tempo.
         # ----------------------------------------------------
 
         processo = subprocess.Popen(
-
             comando,
-
             stdout=subprocess.PIPE,
-
             stderr=subprocess.STDOUT,
-
             stdin=subprocess.DEVNULL,
-
             text=True,
-
             bufsize=1,
-
             errors="replace",
-
             start_new_session=True,
         )
 
-
-        processo_atual =
-            processo
-
+        processo_atual = processo
 
         with job_lock:
-
-            job["pid"] =
-                processo.pid
-
+            job["pid"] = processo.pid
             job["mensagem"] = (
                 "🟡 Processo ativo. "
                 "Aguardando carregamento do modelo..."
             )
 
-
         # ----------------------------------------------------
         # FILA DE SAÍDA
         # ----------------------------------------------------
 
-        fila =
-            queue.Queue()
+        fila = queue.Queue()
 
-
-        leitor =
-            threading.Thread(
-
-                target=ler_saida,
-
-                args=(
-                    processo,
-                    fila
-                ),
-
-                daemon=True,
-            )
-
+        leitor = threading.Thread(
+            target=ler_saida,
+            args=(processo, fila),
+            daemon=True,
+        )
 
         leitor.start()
 
-
         # ----------------------------------------------------
         # WATCHDOG
-        #
-        # Esse loop nunca fica preso em readline().
         # ----------------------------------------------------
 
         while True:
 
-            agora =
-                time.time()
-
-
-            tempo_decorrido =
-                agora - inicio
-
+            agora = time.time()
+            tempo_decorrido = agora - inicio
 
             # ------------------------------------------------
             # DRENAR SAÍDA DISPONÍVEL
@@ -1105,79 +1000,45 @@ def executar_em_segundo_plano(caminho):
             while True:
 
                 try:
-
-                    linha =
-                        fila.get_nowait()
+                    linha = fila.get_nowait()
 
                 except queue.Empty:
-
                     break
 
-
-                adicionar_saida(
-                    linha
-                )
-
+                adicionar_saida(linha)
 
             # ------------------------------------------------
             # PROCESSO TERMINOU?
             # ------------------------------------------------
 
-            retorno =
-                processo.poll()
-
+            retorno = processo.poll()
 
             if retorno is not None:
 
-                # Drena o restante.
+                # Drena o restante da fila.
 
                 while True:
 
                     try:
-
-                        linha =
-                            fila.get_nowait()
+                        linha = fila.get_nowait()
 
                     except queue.Empty:
-
                         break
 
-
-                    adicionar_saida(
-                        linha
-                    )
-
+                    adicionar_saida(linha)
 
                 # Aguarda o leitor finalizar.
 
                 try:
-
-                    leitor.join(
-                        timeout=2
-                    )
+                    leitor.join(timeout=2)
 
                 except Exception:
-
                     pass
 
-
                 with job_lock:
-
-                    job["finished_at"] =
-                        time.time()
-
-                    job["pid"] =
-                        None
-
-
-                texto_final = ""
-
-
-                with job_lock:
-
-                    texto_final =
-                        job["output"]
-
+                    job["finished_at"] = time.time()
+                    job["pid"] = None
+                    texto_final = job["output"]
 
                 # --------------------------------------------
                 # SUCESSO
@@ -1186,19 +1047,12 @@ def executar_em_segundo_plano(caminho):
                 if retorno == 0:
 
                     with job_lock:
-
-                        job["status"] =
-                            "success"
-
-                        job["success"] =
-                            True
-
-                        job["mensagem"] =
+                        job["status"] = "success"
+                        job["success"] = True
+                        job["mensagem"] = (
                             "🟢 llama.cpp terminou normalmente."
-
-                        job["pid"] =
-                            None
-
+                        )
+                        job["pid"] = None
 
                 # --------------------------------------------
                 # ERRO
@@ -1212,34 +1066,19 @@ def executar_em_segundo_plano(caminho):
                         + str(retorno)
                     )
 
-
                     with job_lock:
-
-                        job["status"] =
-                            "error"
-
-                        job["success"] =
-                            False
-
-                        job["mensagem"] =
-                            mensagem_erro
-
+                        job["status"] = "error"
+                        job["success"] = False
+                        job["mensagem"] = mensagem_erro
                         job["output"] = (
                             mensagem_erro
                             + "\n\n"
                             + texto_final
                         )[-MAX_OUTPUT:]
+                        job["pid"] = None
 
-                        job["pid"] =
-                            None
-
-
-                processo_atual =
-                    None
-
-
+                processo_atual = None
                 return
-
 
             # ------------------------------------------------
             # TIMEOUT REAL
@@ -1254,62 +1093,35 @@ def executar_em_segundo_plano(caminho):
                     "porque não terminou dentro do tempo máximo.\n"
                 )
 
+                adicionar_saida(mensagem_timeout)
 
-                adicionar_saida(
-                    mensagem_timeout
-                )
-
-
-                # Mata o processo.
-
-                encerrar_processo(
-                    processo
-                )
-
+                encerrar_processo(processo)
 
                 with job_lock:
-
-                    job["status"] =
-                        "error"
-
-                    job["success"] =
-                        False
-
-                    job["finished_at"] =
-                        time.time()
-
-                    job["pid"] =
-                        None
-
-                    job["mensagem"] =
+                    job["status"] = "error"
+                    job["success"] = False
+                    job["finished_at"] = time.time()
+                    job["pid"] = None
+                    job["mensagem"] = (
                         "⏱️ Timeout de 30 minutos."
+                    )
 
-
-                processo_atual =
-                    None
-
-
+                processo_atual = None
                 return
-
 
             # ------------------------------------------------
             # ATUALIZA MENSAGEM
             # ------------------------------------------------
 
-            minutos =
-                int(
-                    tempo_decorrido // 60
-                )
+            minutos = int(
+                tempo_decorrido // 60
+            )
 
-
-            segundos =
-                int(
-                    tempo_decorrido % 60
-                )
-
+            segundos = int(
+                tempo_decorrido % 60
+            )
 
             with job_lock:
-
                 job["mensagem"] = (
                     "🟡 Carregando SmolVLM... "
                     + str(minutos)
@@ -1318,15 +1130,7 @@ def executar_em_segundo_plano(caminho):
                     + "s"
                 )
 
-
-            # ------------------------------------------------
-            # PEQUENA PAUSA
-            # ------------------------------------------------
-
-            time.sleep(
-                0.25
-            )
-
+            time.sleep(0.25)
 
     except Exception as erro:
 
@@ -1335,43 +1139,24 @@ def executar_em_segundo_plano(caminho):
             + str(erro)
         )
 
-
         try:
-
             if processo_atual:
-
-                encerrar_processo(
-                    processo_atual
-                )
+                encerrar_processo(processo_atual)
 
         except Exception:
-
             pass
 
-
         with job_lock:
-
-            job["status"] =
-                "error"
-
-            job["success"] =
-                False
-
-            job["output"] =
-                texto_erro
-
-            job["finished_at"] =
-                time.time()
-
-            job["pid"] =
-                None
-
-            job["mensagem"] =
+            job["status"] = "error"
+            job["success"] = False
+            job["output"] = texto_erro
+            job["finished_at"] = time.time()
+            job["pid"] = None
+            job["mensagem"] = (
                 "🔴 Erro interno do laboratório."
+            )
 
-
-        processo_atual =
-            None
+        processo_atual = None
 
 
 # ============================================================
@@ -1384,31 +1169,16 @@ def executar_em_segundo_plano(caminho):
 )
 def iniciar():
 
-    llama =
-        procurar(
-            "llama-cli"
-        )
-
+    llama = procurar("llama-cli")
 
     if not llama:
-
-        llama =
-            procurar(
-                "llama"
-            )
-
+        llama = procurar("llama")
 
     if not llama:
-
         return jsonify({
-
             "ok": False,
-
-            "mensagem":
-                "llama-cli não foi encontrado."
-
+            "mensagem": "llama-cli não foi encontrado."
         })
-
 
     with job_lock:
 
@@ -1416,60 +1186,34 @@ def iniciar():
             "running",
             "starting"
         ):
-
             return jsonify({
-
                 "ok": False,
-
                 "mensagem":
                     "O SmolVLM já está sendo carregado."
-
             })
 
-
-        job["status"] =
-            "starting"
-
-        job["output"] =
-            ""
-
-        job["success"] =
-            False
-
-        job["started_at"] =
-            time.time()
-
-        job["finished_at"] =
-            None
-
-        job["pid"] =
-            None
-
-        job["mensagem"] =
+        job["status"] = "starting"
+        job["output"] = ""
+        job["success"] = False
+        job["started_at"] = time.time()
+        job["finished_at"] = None
+        job["pid"] = None
+        job["mensagem"] = (
             "🟡 Preparando llama.cpp..."
-
-
-    thread =
-        threading.Thread(
-
-            target=executar_em_segundo_plano,
-
-            args=(llama,),
-
-            daemon=True,
         )
 
+    thread = threading.Thread(
+        target=executar_em_segundo_plano,
+        args=(llama,),
+        daemon=True,
+    )
 
     thread.start()
 
-
     return jsonify({
-
         "ok": True,
-
         "mensagem":
             "Processo iniciado em segundo plano."
-
     })
 
 
@@ -1484,58 +1228,33 @@ def iniciar():
 def status():
 
     with job_lock:
+        dados = dict(job)
 
-        dados =
-            dict(job)
-
-
-    tempo =
-        0
-
+    tempo = 0
 
     if dados["started_at"]:
 
-        fim =
-            dados["finished_at"]
-
+        fim = dados["finished_at"]
 
         if fim is None:
+            fim = time.time()
 
-            fim =
-                time.time()
-
-
-        tempo =
-            int(
-                max(
-                    0,
-                    fim -
-                    dados["started_at"]
-                )
+        tempo = int(
+            max(
+                0,
+                fim - dados["started_at"]
             )
+        )
 
-
-    dados["tempo"] =
-        tempo
-
-
-    # Nunca devolver None para o frontend.
+    dados["tempo"] = tempo
 
     if dados.get("output") is None:
-
-        dados["output"] =
-            ""
-
+        dados["output"] = ""
 
     if dados.get("mensagem") is None:
+        dados["mensagem"] = ""
 
-        dados["mensagem"] =
-            ""
-
-
-    return jsonify(
-        dados
-    )
+    return jsonify(dados)
 
 
 # ============================================================
@@ -1548,42 +1267,24 @@ def status():
 )
 def inicio():
 
-    llama =
-        procurar(
-            "llama-cli"
-        )
-
+    llama = procurar("llama-cli")
 
     if not llama:
+        llama = procurar("llama")
 
-        llama =
-            procurar(
-                "llama"
-            )
+    mtmd = procurar(
+        "llama-mtmd-cli"
+    )
 
-
-    mtmd =
-        procurar(
-            "llama-mtmd-cli"
-        )
-
-
-    server =
-        procurar(
-            "llama-server"
-        )
-
+    server = procurar(
+        "llama-server"
+    )
 
     return render_template_string(
-
         HTML,
-
         llama=llama,
-
         mtmd=mtmd,
-
         server=server,
-
         model=MODEL,
     )
 
@@ -1594,21 +1295,15 @@ def inicio():
 
 if __name__ == "__main__":
 
-    porta =
-        int(
-            os.environ.get(
-                "PORT",
-                10000
-            )
+    porta = int(
+        os.environ.get(
+            "PORT",
+            10000
         )
-
+    )
 
     app.run(
-
         host="0.0.0.0",
-
         port=porta,
-
         threaded=True,
-
-    )
+        )

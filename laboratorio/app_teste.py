@@ -489,4 +489,273 @@ async function iniciarTeste() {
    ACOMPANHAR PROCESSO
    ========================================================== */
 
+async function acompanhar() {
+
+    if (!monitorando) {
+        return;
+    }
+
+
+    try {
+
+        const resposta =
+            await fetch(
+                "/status?t=" +
+                Date.now(),
+                {
+                    method: "GET",
+                    cache: "no-store"
+                }
+            );
+
+
+        if (!resposta.ok) {
+
+            throw new Error(
+                "HTTP " +
+                resposta.status
+            );
+
+        }
+
+
+        const dados =
+            await resposta.json();
+
+
+        tentativasFalha = 0;
+
+
+        const status =
+            document.getElementById("status");
+
+        const tempo =
+            document.getElementById("tempo");
+
+
+        /* ==================================================
+           PROCESSANDO
+           ================================================== */
+
+        if (
+            dados.status === "running" ||
+            dados.status === "starting"
+        ) {
+
+            const segundos =
+                Number(dados.tempo) || 0;
+
+
+            const minutos =
+                Math.floor(
+                    segundos / 60
+                );
+
+
+            const restante =
+                Math.floor(
+                    segundos % 60
+                );
+
+
+            status.className =
+                "status amarelo";
+
+
+            status.innerText =
+                dados.mensagem ||
+                "🟡 SmolVLM carregando...";
+
+
+            tempo.innerText =
+                "⏱️ " +
+                minutos +
+                "m " +
+                String(restante).padStart(
+                    2,
+                    "0"
+                ) +
+                "s";
+
+
+            if (dados.output) {
+
+                mostrarResultado(
+                    dados.output
+                );
+
+            }
+
+
+            setTimeout(
+                acompanhar,
+                2000
+            );
+
+
+            return;
+
+        }
+
+
+        /* ==================================================
+           SUCESSO
+           ================================================== */
+
+        if (
+            dados.status === "success"
+        ) {
+
+            monitorando = false;
+
+
+            status.className =
+                "status verde";
+
+
+            status.innerText =
+                "🟢 SmolVLM carregado " +
+                "e processo concluído!";
+
+
+            tempo.innerText =
+                "⏱️ Tempo total: " +
+                formatarTempo(
+                    dados.tempo || 0
+                );
+
+
+            mostrarResultado(
+                dados.output
+            );
+
+
+            liberarBotao();
+
+            return;
+
+        }
+
+
+        /* ==================================================
+           ERRO
+           ================================================== */
+
+        if (
+            dados.status === "error"
+        ) {
+
+            monitorando = false;
+
+
+            status.className =
+                "status vermelho";
+
+
+            status.innerText =
+                "🔴 O processo terminou com erro.\n\n" +
+                (
+                    dados.mensagem ||
+                    "Erro desconhecido."
+                );
+
+
+            tempo.innerText =
+                "⏱️ Tempo executado: " +
+                formatarTempo(
+                    dados.tempo || 0
+                );
+
+
+            mostrarResultado(
+                dados.output
+            );
+
+
+            liberarBotao();
+
+            return;
+
+        }
+
+
+        /* ==================================================
+           IDLE
+           ================================================== */
+
+        if (
+            dados.status === "idle"
+        ) {
+
+            monitorando = false;
+
+
+            status.className =
+                "status cinza";
+
+
+            status.innerText =
+                "⏸️ Aguardando início do teste.";
+
+
+            tempo.innerText = "";
+
+
+            liberarBotao();
+
+            return;
+
+        }
+
+
+        setTimeout(
+            acompanhar,
+            2000
+        );
+
+    }
+
+    catch (erro) {
+
+        tentativasFalha++;
+
+
+        const status =
+            document.getElementById(
+                "status"
+            );
+
+
+        status.className =
+            "status amarelo";
+
+
+        status.innerText =
+            "🟡 Falha temporária ao consultar " +
+            "o processo. Tentando novamente...\n\n" +
+            "Tentativa: " +
+            tentativasFalha;
+
+
+        /*
+         * NÃO encerramos o processo.
+         *
+         * Uma falha momentânea na consulta
+         * não significa que o SmolVLM morreu.
+         */
+
+        setTimeout(
+            acompanhar,
+            3000
+        );
+
+    }
+
+}
+
+
+/* ==========================================================
+   MOSTRAR RESULTADO
+   ========================================================== */
+
 

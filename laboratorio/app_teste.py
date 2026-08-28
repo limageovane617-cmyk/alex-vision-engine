@@ -1543,7 +1543,161 @@ def iniciar():
 # STATUS
 # ============================================================
 
+@app.route(
+    "/status",
+    methods=["GET"]
+)
+def status():
+
+    # --------------------------------------------------------
+    # COPIAR ESTADO DE FORMA SEGURA
+    # --------------------------------------------------------
+
+    with job_lock:
+
+        dados = dict(
+            job
+        )
+
+
+    # --------------------------------------------------------
+    # CALCULAR TEMPO
+    # --------------------------------------------------------
+
+    tempo = 0
+
+
+    inicio = dados.get(
+        "started_at"
+    )
+
+
+    if inicio is not None:
+
+        fim = dados.get(
+            "finished_at"
+        )
+
+
+        if fim is None:
+
+            fim = time.time()
+
+
+        tempo = int(
+            max(
+                0,
+                fim - inicio
+            )
+        )
+
+
+    dados["tempo"] = tempo
+
+
+    # --------------------------------------------------------
+    # GARANTIR CAMPOS VÁLIDOS
+    # --------------------------------------------------------
+
+    if dados.get(
+        "output"
+    ) is None:
+
+        dados["output"] = ""
+
+
+    if dados.get(
+        "mensagem"
+    ) is None:
+
+        dados["mensagem"] = ""
+
+
+    if dados.get(
+        "status"
+    ) is None:
+
+        dados["status"] = "idle"
+
+
+    if dados.get(
+        "success"
+    ) is None:
+
+        dados["success"] = False
+
+
+    # --------------------------------------------------------
+    # RETORNO JSON
+    # --------------------------------------------------------
+
+    return jsonify(
+        dados
+    )
+
+
+# ============================================================
+# PÁGINA PRINCIPAL
+# ============================================================
+
+@app.route(
+    "/",
+    methods=["GET"]
+)
+def inicio():
+
+    llama = procurar(
+        "llama-cli"
+    )
+
+
+    mtmd = procurar(
+        "llama-mtmd-cli"
+    )
+
+
+    server = procurar(
+        "llama-server"
+    )
+
+
+    return render_template_string(
+
+        HTML,
+
+        llama=llama,
+
+        mtmd=mtmd,
+
+        server=server,
+
+        model=MODEL,
+
+    )
+
+
+# ============================================================
+# EXECUÇÃO LOCAL
+# ============================================================
+
+if __name__ == "__main__":
+
+    porta = int(
+        os.environ.get(
+            "PORT",
+            "10000"
+        )
+    )
+
+
+    app.run(
+
+        host="0.0.0.0",
+
+        port=porta,
+
+        threaded=True,
+
+    )
+
         
-
-
-

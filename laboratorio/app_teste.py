@@ -758,4 +758,153 @@ async function acompanhar() {
    MOSTRAR RESULTADO
    ========================================================== */
 
+function mostrarResultado(texto) {
+
+    const resultado =
+        document.getElementById(
+            "resultado"
+        );
+
+
+    if (
+        !texto ||
+        String(texto).trim() === ""
+    ) {
+
+        return;
+
+    }
+
+
+    resultado.style.display =
+        "block";
+
+
+    resultado.innerText =
+        String(texto);
+
+}
+
+
+/* ==========================================================
+   FORMATAR TEMPO
+   ========================================================== */
+
+function formatarTempo(segundos) {
+
+    segundos =
+        Math.max(
+            0,
+            Number(segundos) || 0
+        );
+
+
+    const minutos =
+        Math.floor(
+            segundos / 60
+        );
+
+
+    const segundosRestantes =
+        Math.floor(
+            segundos % 60
+        );
+
+
+    return (
+        minutos +
+        "m " +
+        String(
+            segundosRestantes
+        ).padStart(
+            2,
+            "0"
+        ) +
+        "s"
+    );
+
+}
+
+
+/* ==========================================================
+   LIBERAR BOTÃO
+   ========================================================== */
+
+function liberarBotao() {
+
+    const botao =
+        document.getElementById(
+            "botao"
+        );
+
+
+    botao.disabled =
+        false;
+
+
+    botao.innerText =
+        "🧠 Carregar SmolVLM";
+
+}
+
+</script>
+
+</body>
+
+</html>
+"""
+
+
+# ============================================================
+# LOCALIZAR EXECUTÁVEIS
+# ============================================================
+
+def procurar(nome):
+
+    caminho = shutil.which(nome)
+
+    if caminho:
+        return caminho
+
+
+    caminhos = [
+        os.path.join(".", "bin", nome),
+        os.path.join(".", nome),
+        os.path.join(".", "llama.cpp", nome),
+        os.path.join(".", "llama.cpp", "build", "bin", nome),
+        os.path.join(
+            ".",
+            "llama.cpp",
+            "build",
+            "bin",
+            "Release",
+            nome
+        ),
+    ]
+
+
+    for caminho in caminhos:
+
+        if os.path.isfile(caminho):
+
+            try:
+                os.chmod(
+                    caminho,
+                    0o755
+                )
+            except Exception:
+                pass
+
+
+            return caminho
+
+
+    return None
+
+
+# ============================================================
+# ATUALIZAR SAÍDA
+# ============================================================
+
+
 

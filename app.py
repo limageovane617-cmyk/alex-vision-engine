@@ -1,10 +1,10 @@
-from flask import Flask, request, render_template_string
-import base64
+from flask import Flask, render_template_string
 import os
 import shutil
 import subprocess
 
 app = Flask(__name__)
+
 
 HTML = """
 <!DOCTYPE html>
@@ -19,7 +19,7 @@ HTML = """
         content="width=device-width, initial-scale=1.0"
     >
 
-    <title>Alex Vision Engine</title>
+    <title>Alex Vision Lab</title>
 
     <style>
 
@@ -32,7 +32,7 @@ HTML = """
         }
 
         .caixa {
-            max-width: 700px;
+            max-width: 800px;
             margin: auto;
             background: #1f2937;
             padding: 25px;
@@ -47,37 +47,6 @@ HTML = """
             color: #d1d5db;
         }
 
-        hr {
-            border: none;
-            border-top: 1px solid #374151;
-            margin: 25px 0;
-        }
-
-        input[type="file"] {
-            width: 100%;
-            margin: 20px 0;
-        }
-
-        textarea {
-            width: 100%;
-            min-height: 100px;
-            padding: 12px;
-            box-sizing: border-box;
-            border-radius: 10px;
-            border: none;
-            font-size: 16px;
-            resize: vertical;
-        }
-
-        button {
-            margin-top: 15px;
-            padding: 12px 20px;
-            border: none;
-            border-radius: 10px;
-            font-size: 16px;
-            cursor: pointer;
-        }
-
         .painel {
             margin-top: 20px;
             padding: 20px;
@@ -88,17 +57,13 @@ HTML = """
         }
 
         .status {
-            padding: 12px;
+            padding: 14px;
             border-radius: 10px;
-            margin-top: 10px;
+            margin-top: 12px;
         }
 
         .verde {
             background: #065f46;
-        }
-
-        .azul {
-            background: #1e3a8a;
         }
 
         .amarelo {
@@ -109,21 +74,16 @@ HTML = """
             background: #7f1d1d;
         }
 
-        .imagem {
-            max-width: 100%;
-            margin-top: 20px;
-            border-radius: 15px;
-        }
-
-        .resultado {
-            margin-top: 20px;
-            padding: 18px;
-            border-radius: 12px;
-            background: #374151;
-            text-align: left;
+        .azul {
+            background: #1e3a8a;
         }
 
         code {
+            word-break: break-word;
+        }
+
+        pre {
+            white-space: pre-wrap;
             word-break: break-word;
         }
 
@@ -135,136 +95,66 @@ HTML = """
 
 <div class="caixa">
 
-    <h1>🧠 Alex Vision Engine</h1>
+    <h1>🧪 Alex Vision Lab</h1>
 
     <p>
-        Terceiro estágio do motor de visão da Alex IA Ultra
+        Teste controlado do suporte multimodal
+        do llama.cpp
     </p>
 
-    <hr>
 
     <div class="painel">
 
-        <h2>🧠 Diagnóstico do Motor</h2>
-
-        <div class="status verde">
-            🟢 Motor base online
-        </div>
+        <h2>🔬 Runtime</h2>
 
         <div class="status azul">
-            🔬 Modelo planejado:
-            <strong>SmolVLM-256M-Instruct</strong>
-        </div>
-
-        <div class="status azul">
-            ⚙️ Runtime planejado:
+            ⚙️ Runtime:
             <strong>llama.cpp</strong>
         </div>
 
-        {% if llama_status %}
+        <div class="status azul">
+            🧠 Modelo reservado:
+            <strong>SmolVLM-256M-Instruct-GGUF</strong>
+        </div>
+
+        {% if llama %}
 
             <div class="status verde">
+
                 🟢 llama.cpp encontrado!
+
+                <br><br>
+
+                <code>{{ llama }}</code>
+
             </div>
 
         {% else %}
 
-            <div class="status amarelo">
-                🟡 llama.cpp ainda não está instalado neste ambiente.
+            <div class="status vermelho">
+
+                🔴 llama.cpp não encontrado.
+
             </div>
 
         {% endif %}
-
-        <p>
-            Esta etapa apenas verifica o ambiente.
-            Nenhum modelo será baixado automaticamente.
-        </p>
 
     </div>
 
-    <h2>📷 Teste de Visão</h2>
 
-    <form
-        method="POST"
-        enctype="multipart/form-data"
-    >
+    <div class="painel">
 
-        <input
-            type="file"
-            name="imagem"
-            accept="image/*"
-            required
-        >
+        <h2>👁️ Suporte Multimodal</h2>
 
-        <textarea
-            name="comando"
-            placeholder="Digite uma pergunta sobre a imagem..."
-            required
-        ></textarea>
-
-        <br>
-
-        <button type="submit">
-            🧠 Enviar para o Motor
-        </button>
-
-    </form>
-
-    {% if imagem %}
-
-        <div class="status verde">
-
-            🟢 Imagem recebida pelo motor!
-
-        </div>
-
-        <img
-            class="imagem"
-            src="data:{{ tipo }};base64,{{ imagem }}"
-        >
-
-    {% endif %}
-
-    {% if comando %}
-
-        <div class="resultado">
-
-            <strong>
-                ✏️ Pergunta recebida:
-            </strong>
-
-            <br><br>
-
-            {{ comando }}
-
-        </div>
-
-    {% endif %}
-
-    {% if imagem and comando %}
-
-        <div class="status azul">
-
-            🧪 Terceira etapa recebida!
-
-            <br><br>
-
-            📷 Imagem: OK<br>
-            ✏️ Pergunta: OK<br>
-            🧠 Interface: OK
-
-        </div>
-
-        {% if llama_status %}
+        {% if mtmd %}
 
             <div class="status verde">
 
-                🟢 Runtime llama.cpp disponível.
+                🟢 llama-mtmd-cli encontrado!
 
                 <br><br>
 
-                Próximo passo:
-                preparar o modelo SmolVLM.
+                <code>{{ mtmd }}</code>
 
             </div>
 
@@ -272,18 +162,83 @@ HTML = """
 
             <div class="status amarelo">
 
-                🟡 Runtime llama.cpp ainda não disponível.
-
-                <br><br>
-
-                O motor está funcionando,
-                mas o cérebro ainda não foi instalado.
+                🟡 llama-mtmd-cli não encontrado.
 
             </div>
 
         {% endif %}
 
-    {% endif %}
+
+        {% if server %}
+
+            <div class="status verde">
+
+                🟢 llama-server encontrado!
+
+                <br><br>
+
+                <code>{{ server }}</code>
+
+            </div>
+
+        {% else %}
+
+            <div class="status amarelo">
+
+                🟡 llama-server não encontrado.
+
+            </div>
+
+        {% endif %}
+
+    </div>
+
+
+    <div class="painel">
+
+        <h2>🧪 Diagnóstico dos Executáveis</h2>
+
+        <div class="status azul">
+
+            <pre>{{ diagnostico }}</pre>
+
+        </div>
+
+    </div>
+
+
+    <div class="painel">
+
+        <h2>📦 SmolVLM</h2>
+
+        <div class="status amarelo">
+
+            ⏸️ O SmolVLM ainda NÃO será baixado.
+
+            <br><br>
+
+            Primeiro vamos confirmar que o
+            suporte multimodal está disponível.
+
+        </div>
+
+    </div>
+
+
+    <div class="painel">
+
+        <h2>🎯 Próxima etapa</h2>
+
+        <div class="status azul">
+
+            1️⃣ Confirmar llama.cpp<br>
+            2️⃣ Confirmar llama-mtmd-cli<br>
+            3️⃣ Confirmar llama-server<br>
+            4️⃣ Depois carregar o SmolVLM
+
+        </div>
+
+    </div>
 
 </div>
 
@@ -293,121 +248,158 @@ HTML = """
 """
 
 
-def verificar_llama():
+def procurar(nome):
 
-    nomes = [
-        "llama-server",
-        "llama-cli",
-        "llama"
+    caminho = shutil.which(nome)
+
+    if caminho:
+        return caminho
+
+    caminhos = [
+
+        f"./bin/{nome}",
+        f"./{nome}",
+
+        f"./llama.cpp/{nome}",
+
+        f"./llama.cpp/build/bin/{nome}"
+
     ]
 
-    for nome in nomes:
-
-        caminho = shutil.which(nome)
-
-        if caminho:
-
-            return caminho
-
-    caminhos_locais = [
-        "./llama-server",
-        "./llama-cli",
-        "./llama/llama-server",
-        "./llama/llama-cli"
-    ]
-
-    for caminho in caminhos_locais:
+    for caminho in caminhos:
 
         if os.path.isfile(caminho):
-
             return caminho
 
     return None
 
 
-@app.route("/", methods=["GET", "POST"])
-def inicio():
+def executar_version(caminho):
 
-    imagem = None
-    tipo = None
-    comando = None
+    if not caminho:
+        return "Não encontrado."
 
-    llama_caminho = verificar_llama()
-    llama_status = llama_caminho is not None
+    comandos = [
 
-    if request.method == "POST":
+        [caminho, "--version"],
+        [caminho, "-h"]
 
-        arquivo = request.files.get("imagem")
+    ]
 
-        comando = request.form.get(
-            "comando",
-            ""
-        ).strip()
-
-        if arquivo and arquivo.filename:
-
-            dados = arquivo.read()
-
-            imagem = base64.b64encode(
-                dados
-            ).decode("utf-8")
-
-            tipo = (
-                arquivo.mimetype
-                or "image/jpeg"
-            )
-
-    return render_template_string(
-        HTML,
-        imagem=imagem,
-        tipo=tipo,
-        comando=comando,
-        llama_status=llama_status,
-        llama_caminho=llama_caminho
-    )
-
-
-@app.route("/diagnostico")
-def diagnostico():
-
-    llama_caminho = verificar_llama()
-
-    if llama_caminho:
+    for comando in comandos:
 
         try:
 
             resultado = subprocess.run(
-                [llama_caminho, "--version"],
+                comando,
                 capture_output=True,
                 text=True,
                 timeout=10
             )
 
-            versao = (
+            saida = (
                 resultado.stdout
                 or resultado.stderr
-                or "Versão não informada."
+                or ""
             )
 
-            return (
-                "🟢 llama.cpp encontrado!<br><br>"
-                f"Caminho: <code>{llama_caminho}</code>"
-                "<br><br>"
-                f"<pre>{versao}</pre>"
+            if saida.strip():
+
+                return saida.strip()[:3000]
+
+        except Exception:
+            pass
+
+    return "Executável encontrado, mas não foi possível obter a versão."
+
+
+def diagnosticar():
+
+    nomes = [
+
+        "llama",
+        "llama-cli",
+        "llama-mtmd-cli",
+        "llama-server"
+
+    ]
+
+    linhas = []
+
+    linhas.append(
+        "🧪 DIAGNÓSTICO MULTIMODAL"
+    )
+
+    linhas.append(
+        "================================"
+    )
+
+    for nome in nomes:
+
+        caminho = procurar(nome)
+
+        if caminho:
+
+            linhas.append(
+                f"🟢 {nome}: {caminho}"
             )
 
-        except Exception as erro:
-
-            return (
-                "🟡 llama.cpp foi encontrado, "
-                "mas não foi possível executar "
-                "o diagnóstico.<br><br>"
-                f"Erro: {erro}"
+            linhas.append(
+                executar_version(caminho)
             )
+
+        else:
+
+            linhas.append(
+                f"🟡 {nome}: não encontrado"
+            )
+
+    linhas.append(
+        "================================"
+    )
+
+    linhas.append(
+        "📦 SmolVLM não foi baixado."
+    )
+
+    return "\n".join(linhas)
+
+
+@app.route("/")
+def inicio():
+
+    llama = procurar("llama")
+
+    if not llama:
+        llama = procurar("llama-cli")
+
+    mtmd = procurar("llama-mtmd-cli")
+
+    server = procurar("llama-server")
+
+    return render_template_string(
+
+        HTML,
+
+        llama=llama,
+
+        mtmd=mtmd,
+
+        server=server,
+
+        diagnostico=diagnosticar()
+
+    )
+
+
+@app.route("/diagnostico")
+def rota_diagnostico():
 
     return (
-        "🟡 llama.cpp ainda não está instalado "
-        "neste ambiente."
+        "<h1>🧪 Alex Vision Lab</h1>"
+        "<pre>"
+        + diagnosticar()
+        + "</pre>"
     )
 
 

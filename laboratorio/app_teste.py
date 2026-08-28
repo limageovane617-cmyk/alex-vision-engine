@@ -288,12 +288,11 @@ O modelo será carregado pelo llama-mtmd-cli.
 
 <button
     id="botao"
+    type="button"
     onclick="iniciarTeste()"
 >
-🧠 Carregar SmolVLM
+    🧠 Carregar SmolVLM
 </button>
-
-</div>
 
 
 <!-- ====================================================== -->

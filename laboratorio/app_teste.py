@@ -6,33 +6,26 @@ import threading
 import time
 import signal
 import queue
-import platform
-
-
-# ============================================================
-# ALEX VISION LAB
-# TESTE CONTROLADO DO SMOLVLM-256M
-# ============================================================
 
 app = Flask(__name__)
+
+# ============================================================
+# CONFIGURAÇÃO
+# ============================================================
 
 MODEL = "ggml-org/SmolVLM-256M-Instruct-GGUF:Q8_0"
 
 # 30 minutos
 LIMITE_SEGUNDOS = 1800
 
-# Limite da saída armazenada
-MAX_OUTPUT = 60000
-
-# Intervalo de atualização
-INTERVALO_STATUS = 2
-
+# Quantidade máxima de saída armazenada
+MAX_OUTPUT = 50000
 
 # ============================================================
-# ESTADO GLOBAL DO TESTE
+# ESTADO DO TESTE
 # ============================================================
 
-job_lock = threading.RLock()
+job_lock = threading.Lock()
 
 job = {
     "status": "idle",
@@ -41,8 +34,7 @@ job = {
     "started_at": None,
     "finished_at": None,
     "pid": None,
-    "mensagem": "Aguardando início do teste.",
-    "returncode": None,
+    "mensagem": "",
 }
 
 processo_atual = None
@@ -72,14 +64,14 @@ body {
     background: #111827;
     color: white;
     text-align: center;
-    padding: 20px 12px;
+    padding: 25px 15px;
 }
 
 .caixa {
-    max-width: 900px;
+    max-width: 850px;
     margin: auto;
     background: #1f2937;
-    padding: 22px;
+    padding: 25px;
     border-radius: 20px;
 }
 
@@ -88,8 +80,8 @@ h1 {
 }
 
 .painel {
-    margin-top: 18px;
-    padding: 18px;
+    margin-top: 20px;
+    padding: 20px;
     border-radius: 15px;
     background: #111827;
     border: 1px solid #374151;
@@ -99,7 +91,7 @@ h1 {
 .status {
     padding: 15px;
     border-radius: 10px;
-    margin-top: 10px;
+    margin-top: 12px;
     white-space: pre-wrap;
     word-break: break-word;
 }
@@ -149,7 +141,7 @@ pre {
     padding: 15px;
     border-radius: 10px;
     overflow-x: auto;
-    max-height: 550px;
+    max-height: 500px;
     overflow-y: auto;
 }
 
@@ -168,16 +160,9 @@ code {
     margin-top: 10px;
 }
 
-.indicador {
-    margin-top: 10px;
-    font-size: 14px;
-    opacity: 0.75;
-}
-
 </style>
 
 </head>
-
 
 <body>
 
@@ -198,12 +183,11 @@ Teste controlado do carregamento do SmolVLM
 
 <h2>🔬 Runtime</h2>
 
-
 {% if llama %}
 
 <div class="status verde">
 
-🟢 llama.cpp encontrado!
+🟢 llama-cli encontrado!
 
 <br><br>
 
@@ -236,9 +220,9 @@ Teste controlado do carregamento do SmolVLM
 
 {% else %}
 
-<div class="status amarelo">
+<div class="status vermelho">
 
-🟡 llama-mtmd-cli não encontrado.
+🔴 llama-mtmd-cli não encontrado.
 
 </div>
 
@@ -289,11 +273,11 @@ Modelo:
 </div>
 
 <p>
-O modelo será iniciado em segundo plano.
+O modelo será carregado pelo llama-mtmd-cli.
 </p>
 
 <p class="pequeno">
-⏱️ Limite máximo: 30 minutos.
+⏱️ Limite de segurança: 30 minutos.
 </p>
 
 <button
@@ -328,12 +312,6 @@ O modelo será iniciado em segundo plano.
     class="tempo">
 </div>
 
-<div
-    id="conexao"
-    class="indicador">
-🟢 Monitoramento conectado
-</div>
-
 <pre
     id="resultado"
     style="display:none;"></pre>
@@ -353,26 +331,25 @@ O modelo será iniciado em segundo plano.
 
 1️⃣ Confirmar llama.cpp
 
-<br><br>
+<br>
 
-2️⃣ Iniciar SmolVLM
+2️⃣ Usar llama-mtmd-cli para o SmolVLM
 
-<br><br>
+<br>
 
-3️⃣ Acompanhar o processo
+3️⃣ Baixar/carregar o modelo
 
-<br><br>
+<br>
 
-4️⃣ Capturar o resultado real
+4️⃣ Confirmar que o modelo responde
 
-<br><br>
+<br>
 
 5️⃣ Depois testar imagens
 
 </div>
 
 </div>
-
 
 </div>
 
@@ -381,7 +358,7 @@ O modelo será iniciado em segundo plano.
 
 let monitorando = false;
 
-let falhasStatus = 0;
+let tentativasFalha = 0;
 
 
 /* ==========================================================
@@ -402,24 +379,29 @@ async function iniciarTeste() {
     const tempo =
         document.getElementById("tempo");
 
+
     botao.disabled = true;
 
     botao.innerText =
         "⏳ Iniciando...";
 
+
     status.className =
         "status amarelo";
 
     status.innerText =
-        "🟡 Preparando o carregamento do SmolVLM...";
+        "🟡 Preparando llama-mtmd-cli...";
+
 
     tempo.innerText = "";
 
-    resultado.style.display = "none";
+    resultado.style.display =
+        "none";
 
-    resultado.innerText = "";
+    resultado.innerText =
+        "";
 
-    falhasStatus = 0;
+    tentativasFalha = 0;
 
 
     try {
@@ -459,17 +441,19 @@ async function iniciarTeste() {
             liberarBotao();
 
             return;
+
         }
 
 
-        monitorando = true;
+        monitorando =
+            true;
 
 
         status.className =
             "status amarelo";
 
         status.innerText =
-            "🟡 Processo iniciado. Aguardando o SmolVLM...";
+            "🟡 Processo iniciado. O SmolVLM está sendo carregado...";
 
 
         acompanhar();
@@ -478,13 +462,14 @@ async function iniciarTeste() {
 
     catch (erro) {
 
+        monitorando = false;
+
         status.className =
             "status vermelho";
 
         status.innerText =
-            "🔴 Não foi possível iniciar o teste:\n" +
-            erro;
-
+            "🔴 Erro ao iniciar o teste:\\n\\n" +
+            erro.message;
 
         liberarBotao();
 
@@ -508,14 +493,10 @@ async function acompanhar() {
 
         const resposta =
             await fetch(
-                "/status?t=" +
-                Date.now(),
+                "/status?t=" + Date.now(),
                 {
                     method: "GET",
-                    cache: "no-store",
-                    headers: {
-                        "Cache-Control": "no-cache"
-                    }
+                    cache: "no-store"
                 }
             );
 
@@ -523,8 +504,7 @@ async function acompanhar() {
         if (!resposta.ok) {
 
             throw new Error(
-                "HTTP " +
-                resposta.status
+                "HTTP " + resposta.status
             );
 
         }
@@ -534,255 +514,230 @@ async function acompanhar() {
             await resposta.json();
 
 
-        falhasStatus = 0;
+        tentativasFalha = 0;
 
 
-        document.getElementById(
-            "conexao"
-        ).innerText =
-            "🟢 Monitoramento conectado";
+        const status =
+            document.getElementById("status");
+
+        const tempo =
+            document.getElementById("tempo");
 
 
-        atualizarTela(dados);
+        /* ==================================================
+           PROCESSANDO
+           ================================================== */
 
+        if (
+            dados.status === "running" ||
+            dados.status === "starting"
+        ) {
+
+            const segundos =
+                dados.tempo || 0;
+
+
+            const minutos =
+                Math.floor(
+                    segundos / 60
+                );
+
+
+            const restante =
+                segundos % 60;
+
+
+            status.className =
+                "status amarelo";
+
+
+            status.innerText =
+                dados.mensagem ||
+                "🟡 SmolVLM carregando...";
+
+
+            tempo.innerText =
+                "⏱️ " +
+                minutos +
+                "m " +
+                String(restante).padStart(2, "0") +
+                "s";
+
+
+            if (dados.output) {
+
+                mostrarResultado(
+                    dados.output
+                );
+
+            }
+
+
+            setTimeout(
+                acompanhar,
+                2000
+            );
+
+
+            return;
+
+        }
+
+
+        /* ==================================================
+           SUCESSO
+           ================================================== */
+
+        if (
+            dados.status === "success"
+        ) {
+
+            monitorando =
+                false;
+
+
+            status.className =
+                "status verde";
+
+
+            status.innerText =
+                "🟢 SmolVLM carregado e processo concluído!";
+
+
+            tempo.innerText =
+                "⏱️ Tempo total: " +
+                formatarTempo(
+                    dados.tempo || 0
+                );
+
+
+            mostrarResultado(
+                dados.output
+            );
+
+
+            liberarBotao();
+
+            return;
+
+        }
+
+
+        /* ==================================================
+           ERRO
+           ================================================== */
+
+        if (
+            dados.status === "error"
+        ) {
+
+            monitorando =
+                false;
+
+
+            status.className =
+                "status vermelho";
+
+
+            status.innerText =
+                "🔴 O processo terminou com erro.\\n\\n" +
+                (
+                    dados.mensagem ||
+                    "Erro desconhecido."
+                );
+
+
+            tempo.innerText =
+                "⏱️ Tempo executado: " +
+                formatarTempo(
+                    dados.tempo || 0
+                );
+
+
+            mostrarResultado(
+                dados.output
+            );
+
+
+            liberarBotao();
+
+            return;
+
+        }
+
+
+        /* ==================================================
+           IDLE
+           ================================================== */
+
+        if (
+            dados.status === "idle"
+        ) {
+
+            monitorando =
+                false;
+
+
+            status.className =
+                "status cinza";
+
+
+            status.innerText =
+                "⏸️ Aguardando início do teste.";
+
+
+            tempo.innerText =
+                "";
+
+
+            liberarBotao();
+
+            return;
+
+        }
+
+
+        setTimeout(
+            acompanhar,
+            2000
+        );
 
     }
 
     catch (erro) {
 
-        falhasStatus++;
+        tentativasFalha++;
 
 
-        document.getElementById(
-            "conexao"
-        ).innerText =
-            "🟡 Comunicação temporariamente indisponível (" +
-            falhasStatus +
-            ")";
+        const status =
+            document.getElementById("status");
 
 
         /*
-         * IMPORTANTE:
-         *
-         * Uma falha na consulta HTTP NÃO significa
-         * que o SmolVLM falhou.
-         *
-         * O processo continua no servidor.
+         * Não encerramos o teste por uma
+         * falha temporária de comunicação.
          */
-
-        if (falhasStatus <= 20) {
-
-            setTimeout(
-                acompanhar,
-                3000
-            );
-
-            return;
-        }
-
-
-        /*
-         * Depois de muitas falhas consecutivas,
-         * fazemos uma última tentativa.
-         */
-
-        setTimeout(
-            acompanhar,
-            5000
-        );
-
-        return;
-    }
-
-
-    if (monitorando) {
-
-        setTimeout(
-            acompanhar,
-            INTERVALO_STATUS * 1000
-        );
-
-    }
-
-}
-
-
-/* ==========================================================
-   ATUALIZAR TELA
-   ========================================================== */
-
-function atualizarTela(dados) {
-
-    const status =
-        document.getElementById("status");
-
-    const tempo =
-        document.getElementById("tempo");
-
-
-    const segundos =
-        Number(dados.tempo) || 0;
-
-
-    tempo.innerText =
-        "⏱️ " +
-        formatarTempo(segundos);
-
-
-    if (dados.output) {
-
-        mostrarResultado(
-            dados.output
-        );
-
-    }
-
-
-    /* ======================================================
-       INICIANDO / RODANDO
-       ====================================================== */
-
-    if (
-        dados.status === "starting" ||
-        dados.status === "running"
-    ) {
 
         status.className =
             "status amarelo";
 
 
-        let mensagem =
-            "🟡 SmolVLM carregando...";
-
-
-        if (dados.mensagem) {
-
-            mensagem +=
-                "\n\n" +
-                dados.mensagem;
-
-        }
-
-
-        if (dados.pid) {
-
-            mensagem +=
-                "\n\nPID: " +
-                dados.pid;
-
-        }
-
-
         status.innerText =
-            mensagem;
+            "🟡 Comunicação temporariamente indisponível.\\n" +
+            "O processo continua sendo monitorado.\\n\\n" +
+            "Tentativa: " +
+            tentativasFalha;
 
 
-        return;
-    }
+        /*
+         * Continua tentando.
+         */
 
+        setTimeout(
+            acompanhar,
+            3000
+        );
 
-    /* ======================================================
-       SUCESSO
-       ====================================================== */
-
-    if (
-        dados.status === "success"
-    ) {
-
-        monitorando = false;
-
-
-        status.className =
-            "status verde";
-
-
-        status.innerText =
-            "🟢 llama.cpp terminou normalmente.";
-
-
-        if (dados.mensagem) {
-
-            status.innerText +=
-                "\n\n" +
-                dados.mensagem;
-
-        }
-
-
-        liberarBotao();
-
-        return;
-    }
-
-
-    /* ======================================================
-       ERRO
-       ====================================================== */
-
-    if (
-        dados.status === "error"
-    ) {
-
-        monitorando = false;
-
-
-        status.className =
-            "status vermelho";
-
-
-        status.innerText =
-            "🔴 O processo terminou com erro.";
-
-
-        if (dados.mensagem) {
-
-            status.innerText +=
-                "\n\n" +
-                dados.mensagem;
-
-        }
-
-
-        if (
-            dados.returncode !== null &&
-            dados.returncode !== undefined
-        ) {
-
-            status.innerText +=
-                "\n\nCódigo de saída: " +
-                dados.returncode;
-
-        }
-
-
-        liberarBotao();
-
-        return;
-    }
-
-
-    /* ======================================================
-       IDLE
-       ====================================================== */
-
-    if (
-        dados.status === "idle"
-    ) {
-
-        monitorando = false;
-
-
-        status.className =
-            "status cinza";
-
-
-        status.innerText =
-            "⏸️ Aguardando início do teste.";
-
-
-        liberarBotao();
-
-        return;
     }
 
 }
@@ -815,7 +770,7 @@ function mostrarResultado(texto) {
 
 
     resultado.innerText =
-        String(texto);
+        texto;
 
 }
 
@@ -839,7 +794,7 @@ function formatarTempo(segundos) {
         );
 
 
-    const restante =
+    const segundosRestantes =
         Math.floor(
             segundos % 60
         );
@@ -848,10 +803,9 @@ function formatarTempo(segundos) {
     return (
         minutos +
         "m " +
-        String(restante).padStart(
-            2,
-            "0"
-        ) +
+        String(
+            segundosRestantes
+        ).padStart(2, "0") +
         "s"
     );
 
@@ -881,7 +835,6 @@ function liberarBotao() {
 
 </script>
 
-
 </body>
 
 </html>
@@ -894,14 +847,12 @@ function liberarBotao() {
 
 def procurar(nome):
 
-    # Primeiro procura no PATH
     caminho = shutil.which(nome)
 
     if caminho:
         return caminho
 
 
-    # Depois procura nos locais conhecidos
     caminhos = [
 
         f"./bin/{nome}",
@@ -913,10 +864,6 @@ def procurar(nome):
         f"./llama.cpp/build/bin/{nome}",
 
         f"./llama.cpp/build/bin/Release/{nome}",
-
-        f"/usr/local/bin/{nome}",
-
-        f"/usr/bin/{nome}",
 
     ]
 
@@ -930,6 +877,7 @@ def procurar(nome):
                     caminho,
                     0o755
                 )
+
             except Exception:
                 pass
 
@@ -941,7 +889,7 @@ def procurar(nome):
 
 
 # ============================================================
-# ADICIONAR SAÍDA
+# ATUALIZAR SAÍDA
 # ============================================================
 
 def adicionar_saida(texto):
@@ -950,34 +898,23 @@ def adicionar_saida(texto):
         return
 
 
-    texto = str(texto)
-
-
     with job_lock:
 
         atual =
-            job.get(
-                "output",
-                ""
-            )
-
+            job.get("output", "")
 
         novo =
             atual + texto
-
 
         job["output"] =
             novo[-MAX_OUTPUT:]
 
 
 # ============================================================
-# LEITOR DE SAÍDA
+# LEITOR DA SAÍDA
 # ============================================================
 
-def ler_saida(
-    processo,
-    fila
-):
+def ler_saida(processo, fila):
 
     try:
 
@@ -991,17 +928,15 @@ def ler_saida(
                 break
 
 
-            fila.put(
-                linha
-            )
+            fila.put(linha)
 
 
     except Exception as erro:
 
         fila.put(
-            "\n❌ Erro no leitor de saída:\n" +
-            str(erro) +
-            "\n"
+            "\n❌ Erro no leitor de saída: "
+            + str(erro)
+            + "\n"
         )
 
 
@@ -1009,9 +944,7 @@ def ler_saida(
 # ENCERRAR PROCESSO
 # ============================================================
 
-def encerrar_processo(
-    processo
-):
+def encerrar_processo(processo):
 
     if processo is None:
         return
@@ -1023,29 +956,20 @@ def encerrar_processo(
             return
 
 
-        # Linux / Render
-        if platform.system() != "Windows":
+        try:
 
-            try:
+            os.killpg(
+                os.getpgid(
+                    processo.pid
+                ),
+                signal.SIGTERM
+            )
 
-                os.killpg(
-                    os.getpgid(
-                        processo.pid
-                    ),
-                    signal.SIGTERM
-                )
-
-            except Exception:
-
-                try:
-                    processo.terminate()
-                except Exception:
-                    pass
-
-        else:
+        except Exception:
 
             try:
                 processo.terminate()
+
             except Exception:
                 pass
 
@@ -1060,23 +984,18 @@ def encerrar_processo(
 
             try:
 
-                if platform.system() != "Windows":
-
-                    os.killpg(
-                        os.getpgid(
-                            processo.pid
-                        ),
-                        signal.SIGKILL
-                    )
-
-                else:
-
-                    processo.kill()
+                os.killpg(
+                    os.getpgid(
+                        processo.pid
+                    ),
+                    signal.SIGKILL
+                )
 
             except Exception:
 
                 try:
                     processo.kill()
+
                 except Exception:
                     pass
 
@@ -1086,22 +1005,22 @@ def encerrar_processo(
 
 
 # ============================================================
-# EXECUTAR SMOLVLM
+# EXECUÇÃO DO SMOLVLM
 # ============================================================
 
-def executar_em_segundo_plano(
-    caminho
-):
+def executar_em_segundo_plano(caminho):
 
     global processo_atual
 
 
-    processo = None
-
-
-    inicio =
-        time.time()
-
+    /*
+     * IMPORTANTE:
+     *
+     * SmolVLM é multimodal.
+     *
+     * Por isso usamos llama-mtmd-cli,
+     * e NÃO llama-cli.
+     */
 
     comando = [
 
@@ -1119,7 +1038,19 @@ def executar_em_segundo_plano(
 
         "16",
 
+        "--temp",
+
+        "0",
+
     ]
+
+
+    inicio =
+        time.time()
+
+
+    processo =
+        None
 
 
     try:
@@ -1144,64 +1075,34 @@ def executar_em_segundo_plano(
             job["pid"] =
                 None
 
-            job["returncode"] =
-                None
-
             job["mensagem"] =
-                "🟡 Iniciando llama.cpp..."
+                "🟡 llama-mtmd-cli iniciou o processo..."
 
 
-        adicionar_saida(
-            "==================================================\n"
-        )
+        # ----------------------------------------------------
+        # INICIAR
+        # ----------------------------------------------------
 
-        adicionar_saida(
-            "🧠 ALEX VISION LAB\n"
-        )
+        processo =
+            subprocess.Popen(
 
-        adicionar_saida(
-            "Iniciando SmolVLM-256M...\n"
-        )
+                comando,
 
-        adicionar_saida(
-            "Modelo: " +
-            MODEL +
-            "\n\n"
-        )
+                stdout=subprocess.PIPE,
 
+                stderr=subprocess.STDOUT,
 
-        adicionar_saida(
-            "Comando:\n" +
-            " ".join(comando) +
-            "\n\n"
-        )
+                stdin=subprocess.DEVNULL,
 
+                text=True,
 
-        # ====================================================
-        # INICIAR PROCESSO
-        # ====================================================
+                bufsize=1,
 
-        processo = subprocess.Popen(
+                errors="replace",
 
-            comando,
+                start_new_session=True,
 
-            stdout=subprocess.PIPE,
-
-            stderr=subprocess.STDOUT,
-
-            stdin=subprocess.DEVNULL,
-
-            text=True,
-
-            bufsize=1,
-
-            errors="replace",
-
-            start_new_session=(
-                platform.system() != "Windows"
-            ),
-
-        )
+            )
 
 
         processo_atual =
@@ -1214,23 +1115,15 @@ def executar_em_segundo_plano(
                 processo.pid
 
             job["mensagem"] =
-                "🟡 Processo ativo. Aguardando o carregamento do modelo..."
+                (
+                    "🟡 llama-mtmd-cli ativo. "
+                    "Carregando SmolVLM..."
+                )
 
 
-        adicionar_saida(
-            "🟢 Processo iniciado.\n"
-        )
-
-        adicionar_saida(
-            "PID: " +
-            str(processo.pid) +
-            "\n\n"
-        )
-
-
-        # ====================================================
-        # LEITOR
-        # ====================================================
+        # ----------------------------------------------------
+        # FILA
+        # ----------------------------------------------------
 
         fila =
             queue.Queue()
@@ -1254,9 +1147,9 @@ def executar_em_segundo_plano(
         leitor.start()
 
 
-        # ====================================================
+        # ----------------------------------------------------
         # WATCHDOG
-        # ====================================================
+        # ----------------------------------------------------
 
         while True:
 
@@ -1279,6 +1172,7 @@ def executar_em_segundo_plano(
                     linha =
                         fila.get_nowait()
 
+
                 except queue.Empty:
 
                     break
@@ -1290,7 +1184,7 @@ def executar_em_segundo_plano(
 
 
             # ------------------------------------------------
-            # VERIFICAR PROCESSO
+            # PROCESSO TERMINOU?
             # ------------------------------------------------
 
             retorno =
@@ -1300,12 +1194,14 @@ def executar_em_segundo_plano(
             if retorno is not None:
 
                 # Drena saída restante
+
                 while True:
 
                     try:
 
                         linha =
                             fila.get_nowait()
+
 
                     except queue.Empty:
 
@@ -1327,16 +1223,7 @@ def executar_em_segundo_plano(
                     pass
 
 
-                texto_final = ""
-
-
                 with job_lock:
-
-                    texto_final =
-                        job.get(
-                            "output",
-                            ""
-                        )
 
                     job["finished_at"] =
                         time.time()
@@ -1344,23 +1231,15 @@ def executar_em_segundo_plano(
                     job["pid"] =
                         None
 
-                    job["returncode"] =
-                        retorno
+                    texto_final =
+                        job["output"]
 
 
-                # ============================================
+                # --------------------------------------------
                 # SUCESSO
-                # ============================================
+                # --------------------------------------------
 
                 if retorno == 0:
-
-                    adicionar_saida(
-                        "\n\n"
-                        "==================================================\n"
-                        "🟢 PROCESSO CONCLUÍDO COM SUCESSO\n"
-                        "==================================================\n"
-                    )
-
 
                     with job_lock:
 
@@ -1371,33 +1250,27 @@ def executar_em_segundo_plano(
                             True
 
                         job["mensagem"] =
-                            "🟢 llama.cpp terminou normalmente."
+                            (
+                                "🟢 llama-mtmd-cli "
+                                "terminou normalmente."
+                            )
 
                         job["pid"] =
                             None
 
 
-                # ============================================
+                # --------------------------------------------
                 # ERRO
-                # ============================================
+                # --------------------------------------------
 
                 else:
 
                     mensagem_erro =
                         (
-                            "\n\n"
-                            "==================================================\n"
-                            "🔴 LLAMA.CPP ENCERROU COM ERRO\n"
-                            "==================================================\n"
-                            "Código de saída: " +
-                            str(retorno) +
-                            "\n"
+                            "🔴 llama-mtmd-cli encerrou "
+                            "com código de saída: "
+                            + str(retorno)
                         )
-
-
-                    adicionar_saida(
-                        mensagem_erro
-                    )
 
 
                     with job_lock:
@@ -1409,18 +1282,13 @@ def executar_em_segundo_plano(
                             False
 
                         job["mensagem"] =
-                            (
-                                "🔴 llama.cpp encerrou "
-                                "com código " +
-                                str(retorno)
-                            )
+                            mensagem_erro
 
                         job["output"] =
                             (
-                                job.get(
-                                    "output",
-                                    ""
-                                )
+                                mensagem_erro
+                                + "\n\n"
+                                + texto_final
                             )[-MAX_OUTPUT:]
 
                         job["pid"] =
@@ -1437,19 +1305,13 @@ def executar_em_segundo_plano(
             # TIMEOUT
             # ------------------------------------------------
 
-            if (
-                tempo_decorrido >=
-                LIMITE_SEGUNDOS
-            ):
+            if tempo_decorrido >= LIMITE_SEGUNDOS:
 
                 mensagem_timeout =
                     (
                         "\n\n"
-                        "==================================================\n"
-                        "⏱️ LIMITE DE 30 MINUTOS ATINGIDO\n"
-                        "==================================================\n"
-                        "O laboratório encerrou o processo "
-                        "automaticamente.\n"
+                        "⏱️ LIMITE DE 30 MINUTOS ATINGIDO.\n"
+                        "O processo foi encerrado pelo laboratório.\n"
                     )
 
 
@@ -1477,9 +1339,6 @@ def executar_em_segundo_plano(
                     job["pid"] =
                         None
 
-                    job["returncode"] =
-                        -1
-
                     job["mensagem"] =
                         "⏱️ Timeout de 30 minutos."
 
@@ -1491,20 +1350,18 @@ def executar_em_segundo_plano(
 
 
             # ------------------------------------------------
-            # MENSAGEM DE PROGRESSO
+            # ATUALIZAR MENSAGEM
             # ------------------------------------------------
 
             minutos =
                 int(
-                    tempo_decorrido //
-                    60
+                    tempo_decorrido // 60
                 )
 
 
             segundos =
                 int(
-                    tempo_decorrido %
-                    60
+                    tempo_decorrido % 60
                 )
 
 
@@ -1513,14 +1370,10 @@ def executar_em_segundo_plano(
                 job["mensagem"] =
                     (
                         "🟡 Carregando SmolVLM... "
-                        +
-                        str(minutos)
-                        +
-                        "m "
-                        +
-                        str(segundos)
-                        +
-                        "s"
+                        + str(minutos)
+                        + "m "
+                        + str(segundos)
+                        + "s"
                     )
 
 
@@ -1533,28 +1386,18 @@ def executar_em_segundo_plano(
 
         texto_erro =
             (
-                "\n\n"
-                "==================================================\n"
-                "❌ ERRO AO EXECUTAR LLAMA.CPP\n"
-                "==================================================\n"
-                +
-                str(erro)
-                +
-                "\n"
+                "❌ Erro ao executar "
+                "llama-mtmd-cli:\n\n"
+                + str(erro)
             )
-
-
-        adicionar_saida(
-            texto_erro
-        )
 
 
         try:
 
-            if processo is not None:
+            if processo_atual:
 
                 encerrar_processo(
-                    processo
+                    processo_atual
                 )
 
         except Exception:
@@ -1569,17 +1412,17 @@ def executar_em_segundo_plano(
             job["success"] =
                 False
 
+            job["output"] =
+                texto_erro
+
             job["finished_at"] =
                 time.time()
 
             job["pid"] =
                 None
 
-            job["returncode"] =
-                -1
-
             job["mensagem"] =
-                "🔴 Erro interno ao executar o modelo."
+                "🔴 Erro interno do laboratório."
 
 
         processo_atual =
@@ -1596,28 +1439,27 @@ def executar_em_segundo_plano(
 )
 def iniciar():
 
-    llama =
+    # Para SmolVLM, priorizamos
+    # llama-mtmd-cli.
+
+    mtmd =
         procurar(
-            "llama-cli"
+            "llama-mtmd-cli"
         )
 
 
-    if not llama:
-
-        llama =
-            procurar(
-                "llama"
-            )
-
-
-    if not llama:
+    if not mtmd:
 
         return jsonify({
 
-            "ok": False,
+            "ok":
+                False,
 
             "mensagem":
-                "🔴 llama-cli não foi encontrado."
+                (
+                    "llama-mtmd-cli não foi encontrado. "
+                    "O SmolVLM precisa do runtime multimodal."
+                )
 
         })
 
@@ -1625,19 +1467,19 @@ def iniciar():
     with job_lock:
 
         if job["status"] in (
-
             "running",
-
             "starting"
-
         ):
 
             return jsonify({
 
-                "ok": False,
+                "ok":
+                    False,
 
                 "mensagem":
-                    "🟡 O SmolVLM já está sendo carregado."
+                    (
+                        "O SmolVLM já está sendo carregado."
+                    )
 
             })
 
@@ -1645,11 +1487,11 @@ def iniciar():
         job["status"] =
             "starting"
 
-        job["success"] =
-            False
-
         job["output"] =
             ""
+
+        job["success"] =
+            False
 
         job["started_at"] =
             time.time()
@@ -1660,11 +1502,10 @@ def iniciar():
         job["pid"] =
             None
 
-        job["returncode"] =
-            None
-
         job["mensagem"] =
-            "🟡 Preparando llama.cpp..."
+            (
+                "🟡 Preparando llama-mtmd-cli..."
+            )
 
 
     thread =
@@ -1674,7 +1515,7 @@ def iniciar():
                 executar_em_segundo_plano,
 
             args=(
-                llama,
+                mtmd,
             ),
 
             daemon=True,
@@ -1687,10 +1528,14 @@ def iniciar():
 
     return jsonify({
 
-        "ok": True,
+        "ok":
+            True,
 
         "mensagem":
-            "🟢 Processo iniciado em segundo plano."
+            (
+                "llama-mtmd-cli iniciado "
+                "em segundo plano."
+            )
 
     })
 
@@ -1705,97 +1550,57 @@ def iniciar():
 )
 def status():
 
-    try:
+    with job_lock:
 
-        with job_lock:
+        dados =
+            dict(job)
 
-            dados =
-                dict(job)
+
+    tempo =
+        0
+
+
+    if dados["started_at"]:
+
+        fim =
+            dados["finished_at"]
+
+
+        if fim is None:
+
+            fim =
+                time.time()
 
 
         tempo =
-            0
-
-
-        if dados.get(
-            "started_at"
-        ):
-
-            fim =
-                dados.get(
-                    "finished_at"
+            int(
+                max(
+                    0,
+                    fim -
+                    dados["started_at"]
                 )
+            )
 
 
-            if fim is None:
-
-                fim =
-                    time.time()
+    dados["tempo"] =
+        tempo
 
 
-            tempo =
-                int(
-                    max(
-                        0,
-                        fim -
-                        dados["started_at"]
-                    )
-                )
+    if dados.get("output") is None:
+
+        dados["output"] =
+            ""
 
 
-        dados["tempo"] =
-            tempo
+    if dados.get("mensagem") is None:
+
+        dados["mensagem"] =
+            ""
 
 
-        if dados.get(
-            "output"
-        ) is None:
-
-            dados["output"] =
-                ""
-
-
-        if dados.get(
-            "mensagem"
-        ) is None:
-
-            dados["mensagem"] =
-                ""
-
-
-        return jsonify(
-            dados
-        )
-
-
-    except Exception as erro:
-
-        # Nunca deixar /status quebrar
-        return jsonify({
-
-            "status":
-                "running",
-
-            "success":
-                False,
-
-            "output":
-                "",
-
-            "mensagem":
-                "🟡 Monitoramento temporariamente indisponível: "
-                + str(erro),
-
-            "tempo":
-                0,
-
-            "pid":
-                None,
-
-            "returncode":
-                None,
-
-        })
+    return jsonify(
+        dados
+    )
 
 
 # ============================================================
@@ -1812,14 +1617,6 @@ def inicio():
         procurar(
             "llama-cli"
         )
-
-
-    if not llama:
-
-        llama =
-            procurar(
-                "llama"
-            )
 
 
     mtmd =
@@ -1850,7 +1647,7 @@ def inicio():
 
 
 # ============================================================
-# EXECUÇÃO
+# EXECUÇÃO LOCAL
 # ============================================================
 
 if __name__ == "__main__":
@@ -1862,33 +1659,6 @@ if __name__ == "__main__":
                 10000
             )
         )
-
-
-    print(
-        "=============================================="
-    )
-
-    print(
-        "🧪 ALEX VISION LAB"
-    )
-
-    print(
-        "🧠 SmolVLM-256M"
-    )
-
-    print(
-        "=============================================="
-    )
-
-    print(
-        "Modelo:",
-        MODEL
-    )
-
-    print(
-        "Porta:",
-        porta
-    )
 
 
     app.run(

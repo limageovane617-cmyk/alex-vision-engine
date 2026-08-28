@@ -1,9 +1,11 @@
-from flask import Flask, render_template_string
+from flask import Flask, render_template_string, request
 import os
 import shutil
 import subprocess
 
 app = Flask(__name__)
+
+MODEL = "ggml-org/SmolVLM-256M-Instruct-GGUF:Q8_0"
 
 
 HTML = """
@@ -32,7 +34,7 @@ HTML = """
         }
 
         .caixa {
-            max-width: 800px;
+            max-width: 850px;
             margin: auto;
             background: #1f2937;
             padding: 25px;
@@ -78,12 +80,32 @@ HTML = """
             background: #1e3a8a;
         }
 
-        code {
-            word-break: break-word;
+        button {
+            width: 100%;
+            padding: 16px;
+            border: none;
+            border-radius: 12px;
+            background: #2563eb;
+            color: white;
+            font-size: 17px;
+            font-weight: bold;
+            margin-top: 15px;
+        }
+
+        button:active {
+            transform: scale(0.98);
         }
 
         pre {
             white-space: pre-wrap;
+            word-break: break-word;
+            background: #030712;
+            padding: 15px;
+            border-radius: 10px;
+            overflow-x: auto;
+        }
+
+        code {
             word-break: break-word;
         }
 
@@ -98,24 +120,14 @@ HTML = """
     <h1>🧪 Alex Vision Lab</h1>
 
     <p>
-        Teste controlado do suporte multimodal
-        do llama.cpp
+        Primeiro teste controlado de carregamento
+        do SmolVLM
     </p>
 
 
     <div class="painel">
 
         <h2>🔬 Runtime</h2>
-
-        <div class="status azul">
-            ⚙️ Runtime:
-            <strong>llama.cpp</strong>
-        </div>
-
-        <div class="status azul">
-            🧠 Modelo reservado:
-            <strong>SmolVLM-256M-Instruct-GGUF</strong>
-        </div>
 
         {% if llama %}
 
@@ -139,12 +151,6 @@ HTML = """
 
         {% endif %}
 
-    </div>
-
-
-    <div class="painel">
-
-        <h2>👁️ Suporte Multimodal</h2>
 
         {% if mtmd %}
 
@@ -196,45 +202,75 @@ HTML = """
 
     <div class="painel">
 
-        <h2>🧪 Diagnóstico dos Executáveis</h2>
+        <h2>🧠 SmolVLM</h2>
 
         <div class="status azul">
 
-            <pre>{{ diagnostico }}</pre>
-
-        </div>
-
-    </div>
-
-
-    <div class="painel">
-
-        <h2>📦 SmolVLM</h2>
-
-        <div class="status amarelo">
-
-            ⏸️ O SmolVLM ainda NÃO será baixado.
+            Modelo reservado:
 
             <br><br>
 
-            Primeiro vamos confirmar que o
-            suporte multimodal está disponível.
+            <code>{{ model }}</code>
 
         </div>
+
+        <p>
+            O modelo ainda não será carregado automaticamente.
+            Use o botão abaixo para iniciar o teste controlado.
+        </p>
+
+        <form method="POST">
+
+            <button type="submit">
+                🧠 Carregar SmolVLM
+            </button>
+
+        </form>
 
     </div>
 
 
+    {% if resultado %}
+
     <div class="painel">
 
-        <h2>🎯 Próxima etapa</h2>
+        <h2>🧪 Resultado do Teste</h2>
+
+        {% if sucesso %}
+
+            <div class="status verde">
+
+                🟢 O comando foi executado.
+
+            </div>
+
+        {% else %}
+
+            <div class="status vermelho">
+
+                🔴 O comando terminou com erro.
+
+            </div>
+
+        {% endif %}
+
+        <pre>{{ resultado }}</pre>
+
+    </div>
+
+    {% endif %}
+
+
+    <div class="painel">
+
+        <h2>🎯 Objetivo desta etapa</h2>
 
         <div class="status azul">
 
-            1️⃣ Confirmar llama.cpp<br>
-            2️⃣ Confirmar llama-mtmd-cli<br>
-            3️⃣ Confirmar llama-server<br>
-            4️⃣ Depois carregar o SmolVLM
+            1️⃣ Confirmar o runtime<br>
+            2️⃣ Baixar/carregar o SmolVLM<br>
+            3️⃣ Capturar o resultado<br>
+            4️⃣ Só depois testar imagens
 
         </div>
 
@@ -256,14 +292,10 @@ def procurar(nome):
         return caminho
 
     caminhos = [
-
         f"./bin/{nome}",
         f"./{nome}",
-
         f"./llama.cpp/{nome}",
-
         f"./llama.cpp/build/bin/{nome}"
-
     ]
 
     for caminho in caminhos:
@@ -274,108 +306,120 @@ def procurar(nome):
     return None
 
 
-def executar_version(caminho):
+def executar_teste(caminho):
 
     if not caminho:
-        return "Não encontrado."
 
-    comandos = [
+        return (
+            False,
+            "Executável llama-cli não encontrado."
+        )
 
-        [caminho, "--version"],
-        [caminho, "-h"]
-
+    comando = [
+        caminho,
+        "-hf",
+        MODEL,
+        "-p",
+        "Olá Alex. Responda apenas: modelo carregado.",
+        "-n",
+        "16"
     ]
 
-    for comando in comandos:
+    try:
 
-        try:
+        resultado = subprocess.run(
+            comando,
+            capture_output=True,
+            text=True,
+            timeout=300
+        )
 
-            resultado = subprocess.run(
-                comando,
-                capture_output=True,
-                text=True,
-                timeout=10
+        saida = (
+            resultado.stdout
+            or ""
+        )
+
+        erro = (
+            resultado.stderr
+            or ""
+        )
+
+        texto = ""
+
+        if saida.strip():
+            texto += saida
+
+        if erro.strip():
+
+            if texto:
+                texto += "\n\n"
+
+            texto += (
+                "=== STDERR ===\n"
+                + erro
             )
 
-            saida = (
-                resultado.stdout
-                or resultado.stderr
-                or ""
+        if resultado.returncode == 0:
+
+            return (
+                True,
+                texto[-12000:]
             )
 
-            if saida.strip():
-
-                return saida.strip()[:3000]
-
-        except Exception:
-            pass
-
-    return "Executável encontrado, mas não foi possível obter a versão."
-
-
-def diagnosticar():
-
-    nomes = [
-
-        "llama",
-        "llama-cli",
-        "llama-mtmd-cli",
-        "llama-server"
-
-    ]
-
-    linhas = []
-
-    linhas.append(
-        "🧪 DIAGNÓSTICO MULTIMODAL"
-    )
-
-    linhas.append(
-        "================================"
-    )
-
-    for nome in nomes:
-
-        caminho = procurar(nome)
-
-        if caminho:
-
-            linhas.append(
-                f"🟢 {nome}: {caminho}"
+        return (
+            False,
+            (
+                "Código de saída: "
+                + str(resultado.returncode)
+                + "\n\n"
+                + texto[-12000:]
             )
+        )
 
-            linhas.append(
-                executar_version(caminho)
-            )
+    except subprocess.TimeoutExpired:
 
-        else:
+        return (
+            False,
+            "⏱️ O teste ultrapassou 5 minutos."
+        )
 
-            linhas.append(
-                f"🟡 {nome}: não encontrado"
-            )
+    except Exception as e:
 
-    linhas.append(
-        "================================"
-    )
-
-    linhas.append(
-        "📦 SmolVLM não foi baixado."
-    )
-
-    return "\n".join(linhas)
+        return (
+            False,
+            "Erro ao executar o teste:\n"
+            + str(e)
+        )
 
 
-@app.route("/")
+@app.route("/", methods=["GET", "POST"])
 def inicio():
 
-    llama = procurar("llama")
+    llama = procurar("llama-cli")
 
     if not llama:
-        llama = procurar("llama-cli")
+        llama = procurar("llama")
 
     mtmd = procurar("llama-mtmd-cli")
 
     server = procurar("llama-server")
+
+    resultado = None
+    sucesso = False
+
+    if request.method == "POST":
+
+        resultado = (
+            "🧠 Iniciando carregamento do SmolVLM...\n\n"
+            "Modelo:\n"
+            + MODEL
+            + "\n\n"
+            "⏳ Aguarde. O primeiro carregamento pode demorar."
+        )
+
+        sucesso, resultado = executar_teste(
+            llama
+        )
 
     return render_template_string(
 
@@ -387,19 +431,12 @@ def inicio():
 
         server=server,
 
-        diagnostico=diagnosticar()
+        model=MODEL,
 
-    )
+        resultado=resultado,
 
+        sucesso=sucesso
 
-@app.route("/diagnostico")
-def rota_diagnostico():
-
-    return (
-        "<h1>🧪 Alex Vision Lab</h1>"
-        "<pre>"
-        + diagnosticar()
-        + "</pre>"
     )
 
 
@@ -415,4 +452,4 @@ if __name__ == "__main__":
     app.run(
         host="0.0.0.0",
         port=porta
-        )
+    )

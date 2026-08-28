@@ -906,5 +906,134 @@ def procurar(nome):
 # ATUALIZAR SAÍDA
 # ============================================================
 
+def adicionar_saida(texto):
+
+    if not texto:
+        return
+
+
+    texto = str(texto)
+
+
+    with job_lock:
+
+        atual = job.get(
+            "output",
+            ""
+        )
+
+        novo = atual + texto
+
+        job["output"] = novo[
+            -MAX_OUTPUT:
+        ]
+
+
+# ============================================================
+# LEITOR DA SAÍDA DO PROCESSO
+# ============================================================
+
+def ler_saida(
+    processo,
+    fila
+):
+
+    try:
+
+        if processo.stdout is None:
+            return
+
+
+        while True:
+
+            linha = processo.stdout.readline()
+
+
+            if linha == "":
+                break
+
+
+            fila.put(linha)
+
+
+    except Exception as erro:
+
+        fila.put(
+            "\n❌ Erro no leitor de saída: "
+            + str(erro)
+            + "\n"
+        )
+
+
+# ============================================================
+# ENCERRAR PROCESSO
+# ============================================================
+
+def encerrar_processo(
+    processo
+):
+
+    if processo is None:
+        return
+
+
+    try:
+
+        if processo.poll() is not None:
+            return
+
+
+        # Linux / Render
+        try:
+
+            os.killpg(
+                os.getpgid(
+                    processo.pid
+                ),
+                signal.SIGTERM
+            )
+
+        except Exception:
+
+            try:
+                processo.terminate()
+            except Exception:
+                pass
+
+
+        try:
+
+            processo.wait(
+                timeout=8
+            )
+
+        except subprocess.TimeoutExpired:
+
+            try:
+
+                os.killpg(
+                    os.getpgid(
+                        processo.pid
+                    ),
+                    signal.SIGKILL
+                )
+
+            except Exception:
+
+                try:
+                    processo.kill()
+                except Exception:
+                    pass
+
+
+    except Exception:
+        pass
+
+
+# ============================================================
+# EXECUÇÃO EM SEGUNDO PLANO
+# ============================================================
+
+
 
 

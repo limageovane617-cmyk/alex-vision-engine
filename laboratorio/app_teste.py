@@ -371,6 +371,8 @@ let tentativasFalha = 0;
 
 async function iniciarTeste() {
 
+    alert("Botão clicado!");
+
     const botao =
         document.getElementById("botao");
 

@@ -32,7 +32,7 @@ HTML = """
         }
 
         .caixa {
-            max-width: 760px;
+            max-width: 800px;
             margin: auto;
             background: #1f2937;
             padding: 25px;
@@ -98,8 +98,8 @@ HTML = """
     <h1>🧪 Alex Vision Lab</h1>
 
     <p>
-        Diagnóstico controlado do ambiente para
-        instalação do llama.cpp
+        Teste controlado do suporte multimodal
+        do llama.cpp
     </p>
 
 
@@ -108,7 +108,7 @@ HTML = """
         <h2>🔬 Runtime</h2>
 
         <div class="status azul">
-            ⚙️ Runtime planejado:
+            ⚙️ Runtime:
             <strong>llama.cpp</strong>
         </div>
 
@@ -117,7 +117,7 @@ HTML = """
             <strong>SmolVLM-256M-Instruct-GGUF</strong>
         </div>
 
-        {% if llama_caminho %}
+        {% if llama %}
 
             <div class="status verde">
 
@@ -125,15 +125,15 @@ HTML = """
 
                 <br><br>
 
-                <code>{{ llama_caminho }}</code>
+                <code>{{ llama }}</code>
 
             </div>
 
         {% else %}
 
-            <div class="status amarelo">
+            <div class="status vermelho">
 
-                🟡 llama.cpp ainda não está instalado.
+                🔴 llama.cpp não encontrado.
 
             </div>
 
@@ -144,32 +144,59 @@ HTML = """
 
     <div class="painel">
 
-        <h2>🛠️ Ferramentas disponíveis</h2>
+        <h2>👁️ Suporte Multimodal</h2>
 
-        <div class="status {{ git_status }}">
+        {% if mtmd %}
 
-            {{ git_text }}
+            <div class="status verde">
 
-        </div>
+                🟢 llama-mtmd-cli encontrado!
 
-        <div class="status {{ cmake_status }}">
+                <br><br>
 
-            {{ cmake_text }}
+                <code>{{ mtmd }}</code>
 
-        </div>
+            </div>
 
-        <div class="status {{ make_status }}">
+        {% else %}
 
-            {{ make_text }}
+            <div class="status amarelo">
 
-        </div>
+                🟡 llama-mtmd-cli não encontrado.
+
+            </div>
+
+        {% endif %}
+
+
+        {% if server %}
+
+            <div class="status verde">
+
+                🟢 llama-server encontrado!
+
+                <br><br>
+
+                <code>{{ server }}</code>
+
+            </div>
+
+        {% else %}
+
+            <div class="status amarelo">
+
+                🟡 llama-server não encontrado.
+
+            </div>
+
+        {% endif %}
 
     </div>
 
 
     <div class="painel">
 
-        <h2>🧪 Diagnóstico completo</h2>
+        <h2>🧪 Diagnóstico dos Executáveis</h2>
 
         <div class="status azul">
 
@@ -182,15 +209,32 @@ HTML = """
 
     <div class="painel">
 
-        <h2>📦 Modelo</h2>
+        <h2>📦 SmolVLM</h2>
 
         <div class="status amarelo">
 
-            ⏸️ SmolVLM ainda NÃO será baixado.
+            ⏸️ O SmolVLM ainda NÃO será baixado.
 
             <br><br>
 
-            Primeiro precisamos preparar o runtime.
+            Primeiro vamos confirmar que o
+            suporte multimodal está disponível.
+
+        </div>
+
+    </div>
+
+
+    <div class="painel">
+
+        <h2>🎯 Próxima etapa</h2>
+
+        <div class="status azul">
+
+            1️⃣ Confirmar llama.cpp<br>
+            2️⃣ Confirmar llama-mtmd-cli<br>
+            3️⃣ Confirmar llama-server<br>
+            4️⃣ Depois carregar o SmolVLM
 
         </div>
 
@@ -204,37 +248,21 @@ HTML = """
 """
 
 
-def encontrar_executavel():
+def procurar(nome):
 
-    nomes = [
-        "llama",
-        "llama-cli",
-        "llama-server",
-        "llama-mtmd-cli"
-    ]
+    caminho = shutil.which(nome)
 
-    for nome in nomes:
-
-        caminho = shutil.which(nome)
-
-        if caminho:
-            return caminho
+    if caminho:
+        return caminho
 
     caminhos = [
 
-        "./llama",
-        "./llama-cli",
-        "./llama-server",
-        "./llama-mtmd-cli",
+        f"./bin/{nome}",
+        f"./{nome}",
 
-        "./bin/llama",
-        "./bin/llama-cli",
-        "./bin/llama-server",
-        "./bin/llama-mtmd-cli",
+        f"./llama.cpp/{nome}",
 
-        "./llama.cpp/build/bin/llama-cli",
-        "./llama.cpp/build/bin/llama-server",
-        "./llama.cpp/build/bin/llama-mtmd-cli"
+        f"./llama.cpp/build/bin/{nome}"
 
     ]
 
@@ -246,131 +274,92 @@ def encontrar_executavel():
     return None
 
 
-def verificar_comando(nome):
+def executar_version(caminho):
 
-    caminho = shutil.which(nome)
+    if not caminho:
+        return "Não encontrado."
 
-    if caminho:
+    comandos = [
 
-        return True, caminho
+        [caminho, "--version"],
+        [caminho, "-h"]
 
-    return False, None
+    ]
 
+    for comando in comandos:
 
-def executar_versao(comando):
+        try:
 
-    try:
+            resultado = subprocess.run(
+                comando,
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
 
-        resultado = subprocess.run(
-            [comando, "--version"],
-            capture_output=True,
-            text=True,
-            timeout=10
-        )
+            saida = (
+                resultado.stdout
+                or resultado.stderr
+                or ""
+            )
 
-        saida = (
-            resultado.stdout
-            or resultado.stderr
-            or ""
-        )
+            if saida.strip():
 
-        if saida.strip():
+                return saida.strip()[:3000]
 
-            return saida.strip()
+        except Exception:
+            pass
 
-        return "Comando encontrado, mas sem saída."
-
-    except Exception as erro:
-
-        return f"Erro: {erro}"
+    return "Executável encontrado, mas não foi possível obter a versão."
 
 
 def diagnosticar():
 
+    nomes = [
+
+        "llama",
+        "llama-cli",
+        "llama-mtmd-cli",
+        "llama-server"
+
+    ]
+
     linhas = []
 
     linhas.append(
-        "🧪 DIAGNÓSTICO DO AMBIENTE"
+        "🧪 DIAGNÓSTICO MULTIMODAL"
     )
 
     linhas.append(
         "================================"
     )
 
-    llama = encontrar_executavel()
+    for nome in nomes:
 
-    if llama:
+        caminho = procurar(nome)
 
-        linhas.append(
-            f"🟢 llama.cpp encontrado: {llama}"
-        )
+        if caminho:
 
-        linhas.append(
-            executar_versao(llama)
-        )
+            linhas.append(
+                f"🟢 {nome}: {caminho}"
+            )
 
-    else:
+            linhas.append(
+                executar_version(caminho)
+            )
 
-        linhas.append(
-            "🟡 llama.cpp: não encontrado"
-        )
+        else:
 
-    git_ok, git_path = verificar_comando("git")
-
-    if git_ok:
-
-        linhas.append(
-            f"🟢 Git encontrado: {git_path}"
-        )
-
-        linhas.append(
-            executar_versao(git_path)
-        )
-
-    else:
-
-        linhas.append(
-            "🔴 Git não encontrado"
-        )
-
-    cmake_ok, cmake_path = verificar_comando("cmake")
-
-    if cmake_ok:
-
-        linhas.append(
-            f"🟢 CMake encontrado: {cmake_path}"
-        )
-
-        linhas.append(
-            executar_versao(cmake_path)
-        )
-
-    else:
-
-        linhas.append(
-            "🔴 CMake não encontrado"
-        )
-
-    make_ok, make_path = verificar_comando("make")
-
-    if make_ok:
-
-        linhas.append(
-            f"🟢 Make encontrado: {make_path}"
-        )
-
-    else:
-
-        linhas.append(
-            "🟡 Make não encontrado"
-        )
+            linhas.append(
+                f"🟡 {nome}: não encontrado"
+            )
 
     linhas.append(
         "================================"
     )
 
     linhas.append(
-        "📦 Nenhum modelo foi baixado."
+        "📦 SmolVLM não foi baixado."
     )
 
     return "\n".join(linhas)
@@ -379,81 +368,27 @@ def diagnosticar():
 @app.route("/")
 def inicio():
 
-    llama = encontrar_executavel()
+    llama = procurar("llama")
 
-    git_ok, git_path = verificar_comando("git")
+    if not llama:
+        llama = procurar("llama-cli")
 
-    cmake_ok, cmake_path = verificar_comando("cmake")
+    mtmd = procurar("llama-mtmd-cli")
 
-    make_ok, make_path = verificar_comando("make")
-
-
-    if git_ok:
-
-        git_status = "verde"
-
-        git_text = (
-            f"🟢 Git disponível: {git_path}"
-        )
-
-    else:
-
-        git_status = "vermelho"
-
-        git_text = (
-            "🔴 Git não encontrado"
-        )
-
-
-    if cmake_ok:
-
-        cmake_status = "verde"
-
-        cmake_text = (
-            f"🟢 CMake disponível: {cmake_path}"
-        )
-
-    else:
-
-        cmake_status = "vermelho"
-
-        cmake_text = (
-            "🔴 CMake não encontrado"
-        )
-
-
-    if make_ok:
-
-        make_status = "verde"
-
-        make_text = (
-            f"🟢 Make disponível: {make_path}"
-        )
-
-    else:
-
-        make_status = "amarelo"
-
-        make_text = (
-            "🟡 Make não encontrado"
-        )
-
+    server = procurar("llama-server")
 
     return render_template_string(
+
         HTML,
 
-        llama_caminho=llama,
+        llama=llama,
 
-        git_status=git_status,
-        git_text=git_text,
+        mtmd=mtmd,
 
-        cmake_status=cmake_status,
-        cmake_text=cmake_text,
-
-        make_status=make_status,
-        make_text=make_text,
+        server=server,
 
         diagnostico=diagnosticar()
+
     )
 
 
@@ -480,4 +415,4 @@ if __name__ == "__main__":
     app.run(
         host="0.0.0.0",
         port=porta
-    )
+        )

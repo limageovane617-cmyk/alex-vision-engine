@@ -1005,147 +1005,73 @@ def encerrar_processo(processo):
 
 
 # ============================================================
-# EXECUÇÃO DO SMOLVLM
+# EXECUÇÃO EM SEGUNDO PLANO
 # ============================================================
 
 def executar_em_segundo_plano(caminho):
-
     global processo_atual
 
-
-    /*
-     * IMPORTANTE:
-     *
-     * SmolVLM é multimodal.
-     *
-     * Por isso usamos llama-mtmd-cli,
-     * e NÃO llama-cli.
-     */
-
     comando = [
-
         caminho,
-
         "-hf",
-
         MODEL,
-
         "-p",
-
         "Olá Alex. Responda apenas: modelo carregado.",
-
         "-n",
-
         "16",
-
-        "--temp",
-
-        "0",
-
     ]
 
-
-    inicio =
-        time.time()
-
-
-    processo =
-        None
-
+    inicio = time.time()
 
     try:
-
         with job_lock:
-
-            job["status"] =
-                "running"
-
-            job["success"] =
-                False
-
-            job["output"] =
-                ""
-
-            job["started_at"] =
-                inicio
-
-            job["finished_at"] =
-                None
-
-            job["pid"] =
-                None
-
-            job["mensagem"] =
+            job["status"] = "running"
+            job["success"] = False
+            job["output"] = ""
+            job["started_at"] = inicio
+            job["finished_at"] = None
+            job["pid"] = None
+            job["mensagem"] = (
                 "🟡 llama-mtmd-cli iniciou o processo..."
-
-
-        # ----------------------------------------------------
-        # INICIAR
-        # ----------------------------------------------------
-
-        processo =
-            subprocess.Popen(
-
-                comando,
-
-                stdout=subprocess.PIPE,
-
-                stderr=subprocess.STDOUT,
-
-                stdin=subprocess.DEVNULL,
-
-                text=True,
-
-                bufsize=1,
-
-                errors="replace",
-
-                start_new_session=True,
-
             )
 
+        # ----------------------------------------------------
+        # INICIAR PROCESSO
+        # ----------------------------------------------------
 
-        processo_atual =
-            processo
+        processo = subprocess.Popen(
+            comando,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            stdin=subprocess.DEVNULL,
+            text=True,
+            bufsize=1,
+            errors="replace",
+            start_new_session=True,
+        )
 
+        processo_atual = processo
 
         with job_lock:
-
-            job["pid"] =
-                processo.pid
-
-            job["mensagem"] =
-                (
-                    "🟡 llama-mtmd-cli ativo. "
-                    "Carregando SmolVLM..."
-                )
-
-
-        # ----------------------------------------------------
-        # FILA
-        # ----------------------------------------------------
-
-        fila =
-            queue.Queue()
-
-
-        leitor =
-            threading.Thread(
-
-                target=ler_saida,
-
-                args=(
-                    processo,
-                    fila
-                ),
-
-                daemon=True,
-
+            job["pid"] = processo.pid
+            job["mensagem"] = (
+                "🟡 llama-mtmd-cli ativo. "
+                "Aguardando carregamento do SmolVLM..."
             )
 
+        # ----------------------------------------------------
+        # FILA DE SAÍDA
+        # ----------------------------------------------------
+
+        fila = queue.Queue()
+
+        leitor = threading.Thread(
+            target=ler_saida,
+            args=(processo, fila),
+            daemon=True,
+        )
 
         leitor.start()
-
 
         # ----------------------------------------------------
         # WATCHDOG
@@ -1153,13 +1079,11 @@ def executar_em_segundo_plano(caminho):
 
         while True:
 
-            agora =
-                time.time()
+            agora = time.time()
 
-
-            tempo_decorrido =
+            tempo_decorrido = (
                 agora - inicio
-
+            )
 
             # ------------------------------------------------
             # DRENAR SAÍDA
@@ -1168,72 +1092,40 @@ def executar_em_segundo_plano(caminho):
             while True:
 
                 try:
-
-                    linha =
-                        fila.get_nowait()
-
+                    linha = fila.get_nowait()
 
                 except queue.Empty:
-
                     break
 
-
-                adicionar_saida(
-                    linha
-                )
-
+                adicionar_saida(linha)
 
             # ------------------------------------------------
-            # PROCESSO TERMINOU?
+            # VERIFICAR PROCESSO
             # ------------------------------------------------
 
-            retorno =
-                processo.poll()
-
+            retorno = processo.poll()
 
             if retorno is not None:
-
-                # Drena saída restante
 
                 while True:
 
                     try:
-
-                        linha =
-                            fila.get_nowait()
-
+                        linha = fila.get_nowait()
 
                     except queue.Empty:
-
                         break
 
-
-                    adicionar_saida(
-                        linha
-                    )
-
+                    adicionar_saida(linha)
 
                 try:
-
-                    leitor.join(
-                        timeout=3
-                    )
-
+                    leitor.join(timeout=2)
                 except Exception:
                     pass
 
-
                 with job_lock:
-
-                    job["finished_at"] =
-                        time.time()
-
-                    job["pid"] =
-                        None
-
-                    texto_final =
-                        job["output"]
-
+                    job["finished_at"] = time.time()
+                    job["pid"] = None
+                    texto_final = job["output"]
 
                 # --------------------------------------------
                 # SUCESSO
@@ -1242,22 +1134,12 @@ def executar_em_segundo_plano(caminho):
                 if retorno == 0:
 
                     with job_lock:
-
-                        job["status"] =
-                            "success"
-
-                        job["success"] =
-                            True
-
-                        job["mensagem"] =
-                            (
-                                "🟢 llama-mtmd-cli "
-                                "terminou normalmente."
-                            )
-
-                        job["pid"] =
-                            None
-
+                        job["status"] = "success"
+                        job["success"] = True
+                        job["mensagem"] = (
+                            "🟢 llama-mtmd-cli terminou normalmente."
+                        )
+                        job["pid"] = None
 
                 # --------------------------------------------
                 # ERRO
@@ -1265,41 +1147,26 @@ def executar_em_segundo_plano(caminho):
 
                 else:
 
-                    mensagem_erro =
-                        (
-                            "🔴 llama-mtmd-cli encerrou "
-                            "com código de saída: "
-                            + str(retorno)
-                        )
-
+                    mensagem_erro = (
+                        "🔴 llama-mtmd-cli encerrou com "
+                        "código de saída: "
+                        + str(retorno)
+                    )
 
                     with job_lock:
-
-                        job["status"] =
-                            "error"
-
-                        job["success"] =
-                            False
-
-                        job["mensagem"] =
+                        job["status"] = "error"
+                        job["success"] = False
+                        job["mensagem"] = mensagem_erro
+                        job["output"] = (
                             mensagem_erro
+                            + "\n\n"
+                            + texto_final
+                        )[-MAX_OUTPUT:]
+                        job["pid"] = None
 
-                        job["output"] =
-                            (
-                                mensagem_erro
-                                + "\n\n"
-                                + texto_final
-                            )[-MAX_OUTPUT:]
-
-                        job["pid"] =
-                            None
-
-
-                processo_atual =
-                    None
+                processo_atual = None
 
                 return
-
 
             # ------------------------------------------------
             # TIMEOUT
@@ -1307,126 +1174,83 @@ def executar_em_segundo_plano(caminho):
 
             if tempo_decorrido >= LIMITE_SEGUNDOS:
 
-                mensagem_timeout =
-                    (
-                        "\n\n"
-                        "⏱️ LIMITE DE 30 MINUTOS ATINGIDO.\n"
-                        "O processo foi encerrado pelo laboratório.\n"
-                    )
-
+                mensagem_timeout = (
+                    "\n\n"
+                    "⏱️ LIMITE DE 30 MINUTOS ATINGIDO.\n"
+                    "O processo foi encerrado pelo laboratório.\n"
+                )
 
                 adicionar_saida(
                     mensagem_timeout
                 )
 
-
                 encerrar_processo(
                     processo
                 )
 
-
                 with job_lock:
-
-                    job["status"] =
-                        "error"
-
-                    job["success"] =
-                        False
-
-                    job["finished_at"] =
-                        time.time()
-
-                    job["pid"] =
-                        None
-
-                    job["mensagem"] =
+                    job["status"] = "error"
+                    job["success"] = False
+                    job["finished_at"] = time.time()
+                    job["pid"] = None
+                    job["mensagem"] = (
                         "⏱️ Timeout de 30 minutos."
+                    )
 
-
-                processo_atual =
-                    None
+                processo_atual = None
 
                 return
-
 
             # ------------------------------------------------
             # ATUALIZAR MENSAGEM
             # ------------------------------------------------
 
-            minutos =
-                int(
-                    tempo_decorrido // 60
-                )
-
-
-            segundos =
-                int(
-                    tempo_decorrido % 60
-                )
-
-
-            with job_lock:
-
-                job["mensagem"] =
-                    (
-                        "🟡 Carregando SmolVLM... "
-                        + str(minutos)
-                        + "m "
-                        + str(segundos)
-                        + "s"
-                    )
-
-
-            time.sleep(
-                0.25
+            minutos = int(
+                tempo_decorrido // 60
             )
 
+            segundos = int(
+                tempo_decorrido % 60
+            )
+
+            with job_lock:
+                job["mensagem"] = (
+                    "🟡 Carregando SmolVLM... "
+                    + str(minutos)
+                    + "m "
+                    + str(segundos)
+                    + "s"
+                )
+
+            time.sleep(0.25)
 
     except Exception as erro:
 
-        texto_erro =
-            (
-                "❌ Erro ao executar "
-                "llama-mtmd-cli:\n\n"
-                + str(erro)
-            )
-
+        texto_erro = (
+            "❌ Erro ao executar "
+            "llama-mtmd-cli:\n\n"
+            + str(erro)
+        )
 
         try:
-
             if processo_atual:
-
                 encerrar_processo(
                     processo_atual
                 )
-
         except Exception:
             pass
 
-
         with job_lock:
-
-            job["status"] =
-                "error"
-
-            job["success"] =
-                False
-
-            job["output"] =
-                texto_erro
-
-            job["finished_at"] =
-                time.time()
-
-            job["pid"] =
-                None
-
-            job["mensagem"] =
+            job["status"] = "error"
+            job["success"] = False
+            job["output"] = texto_erro
+            job["finished_at"] = time.time()
+            job["pid"] = None
+            job["mensagem"] = (
                 "🔴 Erro interno do laboratório."
+            )
 
-
-        processo_atual =
-            None
+        processo_atual = None
 
 
 # ============================================================

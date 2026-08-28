@@ -7,30 +7,22 @@ app = Flask(__name__)
 
 MODEL = "ggml-org/SmolVLM-256M-Instruct-GGUF:Q8_0"
 
-
 HTML = """
 <!DOCTYPE html>
 <html lang="pt-BR">
-
 <head>
-
     <meta charset="UTF-8">
-
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <title>Alex Vision Lab</title>
 
     <style>
-
         body {
             font-family: Arial, sans-serif;
             background: #111827;
             color: white;
             text-align: center;
-            padding: 30px 15px;
+            padding: 25px 15px;
         }
 
         .caixa {
@@ -45,10 +37,6 @@ HTML = """
             font-size: 30px;
         }
 
-        p {
-            color: #d1d5db;
-        }
-
         .painel {
             margin-top: 20px;
             padding: 20px;
@@ -59,7 +47,7 @@ HTML = """
         }
 
         .status {
-            padding: 14px;
+            padding: 15px;
             border-radius: 10px;
             margin-top: 12px;
         }
@@ -83,17 +71,13 @@ HTML = """
         button {
             width: 100%;
             padding: 16px;
+            margin-top: 15px;
             border: none;
             border-radius: 12px;
             background: #2563eb;
             color: white;
             font-size: 17px;
             font-weight: bold;
-            margin-top: 15px;
-        }
-
-        button:active {
-            transform: scale(0.98);
         }
 
         pre {
@@ -108,9 +92,7 @@ HTML = """
         code {
             word-break: break-word;
         }
-
     </style>
-
 </head>
 
 <body>
@@ -120,93 +102,58 @@ HTML = """
     <h1>🧪 Alex Vision Lab</h1>
 
     <p>
-        Primeiro teste controlado de carregamento
-        do SmolVLM
+        Primeiro teste controlado de carregamento do SmolVLM
     </p>
-
 
     <div class="painel">
 
         <h2>🔬 Runtime</h2>
 
         {% if llama %}
-
             <div class="status verde">
-
                 🟢 llama.cpp encontrado!
-
                 <br><br>
-
                 <code>{{ llama }}</code>
-
             </div>
-
         {% else %}
-
             <div class="status vermelho">
-
                 🔴 llama.cpp não encontrado.
-
             </div>
-
         {% endif %}
-
 
         {% if mtmd %}
-
             <div class="status verde">
-
                 🟢 llama-mtmd-cli encontrado!
-
                 <br><br>
-
                 <code>{{ mtmd }}</code>
-
             </div>
-
         {% else %}
-
             <div class="status amarelo">
-
                 🟡 llama-mtmd-cli não encontrado.
-
             </div>
-
         {% endif %}
 
-
         {% if server %}
-
             <div class="status verde">
-
                 🟢 llama-server encontrado!
-
                 <br><br>
-
                 <code>{{ server }}</code>
-
             </div>
-
         {% else %}
-
             <div class="status amarelo">
-
                 🟡 llama-server não encontrado.
-
             </div>
-
         {% endif %}
 
     </div>
 
-
     <div class="painel">
 
-        <h2>🧠 SmolVLM</h2>
+        <h2>🧠 SmolVLM-256M</h2>
 
         <div class="status azul">
 
-            Modelo reservado:
+            Modelo:
 
             <br><br>
 
@@ -215,8 +162,8 @@ HTML = """
         </div>
 
         <p>
-            O modelo ainda não será carregado automaticamente.
-            Use o botão abaixo para iniciar o teste controlado.
+            O modelo será carregado somente quando você
+            apertar o botão abaixo.
         </p>
 
         <form method="POST">
@@ -229,27 +176,22 @@ HTML = """
 
     </div>
 
-
     {% if resultado %}
 
     <div class="painel">
 
-        <h2>🧪 Resultado do Teste</h2>
+        <h2>🧪 Resultado</h2>
 
         {% if sucesso %}
 
             <div class="status verde">
-
-                🟢 O comando foi executado.
-
+                🟢 O processo terminou com sucesso.
             </div>
 
         {% else %}
 
             <div class="status vermelho">
-
-                🔴 O comando terminou com erro.
-
+                🔴 O processo terminou com erro.
             </div>
 
         {% endif %}
@@ -260,17 +202,16 @@ HTML = """
 
     {% endif %}
 
-
     <div class="painel">
 
         <h2>🎯 Objetivo desta etapa</h2>
 
         <div class="status azul">
 
-            1️⃣ Confirmar o runtime<br>
-            2️⃣ Baixar/carregar o SmolVLM<br>
-            3️⃣ Capturar o resultado<br>
-            4️⃣ Só depois testar imagens
+            1️⃣ Confirmar llama.cpp<br>
+            2️⃣ Baixar/carregar SmolVLM<br>
+            3️⃣ Mostrar o resultado<br>
+            4️⃣ Depois testar imagens
 
         </div>
 
@@ -279,7 +220,6 @@ HTML = """
 </div>
 
 </body>
-
 </html>
 """
 
@@ -309,10 +249,9 @@ def procurar(nome):
 def executar_teste(caminho):
 
     if not caminho:
-
         return (
             False,
-            "Executável llama-cli não encontrado."
+            "❌ llama-cli não foi encontrado."
         )
 
     comando = [
@@ -334,15 +273,8 @@ def executar_teste(caminho):
             timeout=300
         )
 
-        saida = (
-            resultado.stdout
-            or ""
-        )
-
-        erro = (
-            resultado.stderr
-            or ""
-        )
+        saida = resultado.stdout or ""
+        erro = resultado.stderr or ""
 
         texto = ""
 
@@ -354,26 +286,22 @@ def executar_teste(caminho):
             if texto:
                 texto += "\n\n"
 
-            texto += (
-                "=== STDERR ===\n"
-                + erro
-            )
+            texto += "=== STDERR ===\n"
+            texto += erro
 
         if resultado.returncode == 0:
 
             return (
                 True,
-                texto[-12000:]
+                texto[-15000:]
             )
 
         return (
             False,
-            (
-                "Código de saída: "
-                + str(resultado.returncode)
-                + "\n\n"
-                + texto[-12000:]
-            )
+            "Código de saída: "
+            + str(resultado.returncode)
+            + "\n\n"
+            + texto[-15000:]
         )
 
     except subprocess.TimeoutExpired:
@@ -387,7 +315,7 @@ def executar_teste(caminho):
 
         return (
             False,
-            "Erro ao executar o teste:\n"
+            "❌ Erro ao executar o teste:\n"
             + str(e)
         )
 
@@ -409,34 +337,18 @@ def inicio():
 
     if request.method == "POST":
 
-        resultado = (
-            "🧠 Iniciando carregamento do SmolVLM...\n\n"
-            "Modelo:\n"
-            + MODEL
-            + "\n\n"
-            "⏳ Aguarde. O primeiro carregamento pode demorar."
-        )
-
         sucesso, resultado = executar_teste(
             llama
         )
 
     return render_template_string(
-
         HTML,
-
         llama=llama,
-
         mtmd=mtmd,
-
         server=server,
-
         model=MODEL,
-
         resultado=resultado,
-
         sucesso=sucesso
-
     )
 
 

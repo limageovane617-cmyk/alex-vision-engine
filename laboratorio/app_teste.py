@@ -1309,6 +1309,240 @@ def executar_em_segundo_plano(
             # TIMEOUT
             # ------------------------------------------------
 
+            if (
+                tempo_decorrido >=
+                LIMITE_SEGUNDOS
+            ):
+
+                mensagem_timeout = (
+                    "\n\n"
+                    "⏱️ LIMITE DE 30 MINUTOS ATINGIDO.\n"
+                    "O processo foi encerrado "
+                    "pelo laboratório.\n"
+                )
+
+
+                adicionar_saida(
+                    mensagem_timeout
+                )
+
+
+                encerrar_processo(
+                    processo
+                )
+
+
+                with job_lock:
+
+                    job["status"] = (
+                        "error"
+                    )
+
+                    job["success"] = False
+
+                    job["finished_at"] = (
+                        time.time()
+                    )
+
+                    job["pid"] = None
+
+                    job["mensagem"] = (
+                        "⏱️ Timeout de 30 minutos."
+                    )
+
+
+                processo_atual = None
+
+                return
+
+
+            # ------------------------------------------------
+            # ATUALIZAR MENSAGEM
+            # ------------------------------------------------
+
+            minutos = int(
+                tempo_decorrido // 60
+            )
+
+
+            segundos = int(
+                tempo_decorrido % 60
+            )
+
+
+            with job_lock:
+
+                job["mensagem"] = (
+                    "🟡 Carregando SmolVLM... "
+                    + str(minutos)
+                    + "m "
+                    + str(segundos)
+                    + "s"
+                )
+
+
+            time.sleep(
+                INTERVALO_MONITORAMENTO
+            )
+
+
+    # ========================================================
+    # ERRO INTERNO
+    # ========================================================
+
+    except Exception as erro:
+
+        texto_erro = (
+            "❌ Erro ao executar "
+            "llama-mtmd-cli:\n\n"
+            + str(erro)
+        )
+
+
+        try:
+
+            if processo is not None:
+
+                encerrar_processo(
+                    processo
+                )
+
+            elif processo_atual is not None:
+
+                encerrar_processo(
+                    processo_atual
+                )
+
+        except Exception:
+            pass
+
+
+        with job_lock:
+
+            job["status"] = (
+                "error"
+            )
+
+            job["success"] = False
+
+            job["output"] = (
+                texto_erro
+            )[-MAX_OUTPUT:]
+
+            job["finished_at"] = (
+                time.time()
+            )
+
+            job["pid"] = None
+
+            job["mensagem"] = (
+                "🔴 Erro interno do laboratório."
+            )
+
+
+        processo_atual = None
+
+
+# ============================================================
+# INICIAR TESTE
+# ============================================================
+
+@app.route(
+    "/iniciar",
+    methods=["POST"]
+)
+def iniciar():
+
+    # O SmolVLM utiliza o runtime multimodal.
+    mtmd = procurar(
+        "llama-mtmd-cli"
+    )
+
+
+    if not mtmd:
+
+        return jsonify({
+
+            "ok": False,
+
+            "mensagem": (
+                "llama-mtmd-cli não foi encontrado. "
+                "O SmolVLM precisa do runtime multimodal."
+            )
+
+        })
+
+
+    with job_lock:
+
+        if job["status"] in (
+            "running",
+            "starting"
+        ):
+
+            return jsonify({
+
+                "ok": False,
+
+                "mensagem": (
+                    "O SmolVLM já está sendo carregado."
+                )
+
+            })
+
+
+        job["status"] = (
+            "starting"
+        )
+
+        job["output"] = ""
+
+        job["success"] = False
+
+        job["started_at"] = (
+            time.time()
+        )
+
+        job["finished_at"] = None
+
+        job["pid"] = None
+
+        job["mensagem"] = (
+            "🟡 Preparando llama-mtmd-cli..."
+        )
+
+
+    thread = threading.Thread(
+
+        target=executar_em_segundo_plano,
+
+        args=(
+            mtmd,
+        ),
+
+        daemon=True,
+    )
+
+
+    thread.start()
+
+
+    return jsonify({
+
+        "ok": True,
+
+        "mensagem": (
+            "llama-mtmd-cli iniciado "
+            "em segundo plano."
+        )
+
+    })
+
+
+# ============================================================
+# STATUS
+# ============================================================
+
         
 
 

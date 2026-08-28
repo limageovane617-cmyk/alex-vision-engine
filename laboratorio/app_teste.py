@@ -1263,30 +1263,20 @@ def executar_em_segundo_plano(caminho):
 )
 def iniciar():
 
-    # Para SmolVLM, priorizamos
-    # llama-mtmd-cli.
-
-    mtmd =
-        procurar(
-            "llama-mtmd-cli"
-        )
-
+    # Para o SmolVLM usamos o runtime multimodal.
+    mtmd = procurar(
+        "llama-mtmd-cli"
+    )
 
     if not mtmd:
 
         return jsonify({
-
-            "ok":
-                False,
-
-            "mensagem":
-                (
-                    "llama-mtmd-cli não foi encontrado. "
-                    "O SmolVLM precisa do runtime multimodal."
-                )
-
+            "ok": False,
+            "mensagem": (
+                "llama-mtmd-cli não foi encontrado. "
+                "O SmolVLM precisa do runtime multimodal."
+            )
         })
-
 
     with job_lock:
 
@@ -1296,71 +1286,36 @@ def iniciar():
         ):
 
             return jsonify({
-
-                "ok":
-                    False,
-
-                "mensagem":
-                    (
-                        "O SmolVLM já está sendo carregado."
-                    )
-
+                "ok": False,
+                "mensagem": (
+                    "O SmolVLM já está sendo carregado."
+                )
             })
 
-
-        job["status"] =
-            "starting"
-
-        job["output"] =
-            ""
-
-        job["success"] =
-            False
-
-        job["started_at"] =
-            time.time()
-
-        job["finished_at"] =
-            None
-
-        job["pid"] =
-            None
-
-        job["mensagem"] =
-            (
-                "🟡 Preparando llama-mtmd-cli..."
-            )
-
-
-    thread =
-        threading.Thread(
-
-            target=
-                executar_em_segundo_plano,
-
-            args=(
-                mtmd,
-            ),
-
-            daemon=True,
-
+        job["status"] = "starting"
+        job["output"] = ""
+        job["success"] = False
+        job["started_at"] = time.time()
+        job["finished_at"] = None
+        job["pid"] = None
+        job["mensagem"] = (
+            "🟡 Preparando llama-mtmd-cli..."
         )
 
+    thread = threading.Thread(
+        target=executar_em_segundo_plano,
+        args=(mtmd,),
+        daemon=True,
+    )
 
     thread.start()
 
-
     return jsonify({
-
-        "ok":
-            True,
-
-        "mensagem":
-            (
-                "llama-mtmd-cli iniciado "
-                "em segundo plano."
-            )
-
+        "ok": True,
+        "mensagem": (
+            "llama-mtmd-cli iniciado "
+            "em segundo plano."
+        )
     })
 
 
